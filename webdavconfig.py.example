@@ -1,0 +1,44 @@
+# -*- coding: utf-8 -*-
+
+# Root directory for files that are served through WebDAV.
+# Users are denied access outside this directory.
+root_dir = '/tmp'
+
+# Root url of the WebDAV repository.
+# Can usually be None, so that the program automatically decides the path
+# based on request.
+# If specified, should be like 'http://domain.com/webdav.cgi/'.
+root_url = None
+
+# Access restrictions
+# List entries can be either shell glob patterns (* and ? wildcards)
+# or Python functions taking a path and returning a boolean.
+#
+# Glob patterns are matched against each component of the path, so that
+# e.g. '.svn' also denies access to all files under '.svn'.
+#
+# Python functions get the whole path to the file in file system and
+# should return True to deny access.
+
+# Deny all access to these files.
+restrict_access = [
+    '.ht*',
+    '.svn'
+]
+    
+# Deny write access to these files.
+restrict_write = [
+    '*.php',
+    '*.cgi',
+    '*.fcgi',
+    '*.pl',
+    
+    # Apache is silly and matches multiple file extension
+    # individually in some configurations.
+    # E.g. test.php.txt gets parsed as php.
+    '*.php.*',
+    '*.cgi.*',
+    '*.fcgi.*',
+    '*.pl.*',
+]
+

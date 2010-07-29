@@ -1,0 +1,20 @@
+# Enable the methods used by WebDAV, in case they are disabled
+# in global server config.
+<Limit GET POST PUT DELETE OPTIONS PROPFIND PROPPATCH MKCOL COPY MOVE LOCK UNLOCK>
+    Order allow,deny
+    Allow from all
+</Limit>
+
+# Redirect all requests to the directory to the script.
+RewriteEngine On
+
+# Change this to the path after your web server name.
+# E.g. if the url is http://domain.com/webdav/,
+# then RewriteBase must be /webdav/
+RewriteBase /~user/webdav/
+
+# You can change this to webdav.fcgi once you have verified that the settings
+# work. Webdav.fcgi is faster, but when using FCGI you have to kill the process
+# before new settings come to effect.
+RewriteCond %{REQUEST_FILENAME} !webdav.cgi
+RewriteRule ^(.*)$ webdav.cgi/$1 [L]
