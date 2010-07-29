@@ -123,7 +123,7 @@ def get_root_url(environ):
             path = get_path(environ)
             if path:
                 # Remove the WebDAV relative path from the end of the url
-                url = url[:-len(path)]
+                url = url.rstrip('/')[:-len(path)]
         else:
             url += '/'
                             
