@@ -118,7 +118,11 @@ def get_root_url(environ):
     else:
         url = wsgiref.util.guess_scheme(environ) # 'http' or 'https'
         url += '://' + environ['HTTP_HOST']
-        url += environ['REQUEST_URI']
+        if environ.has_key('REQUEST_URI'):
+            url += environ['REQUEST_URI']
+            url = url[:-len(get_path(environ))]
+        else:
+            url += '/'
                             
     # Some programs require the root directory url to include
     # a trailing slash, because otherwise Apache performs a
