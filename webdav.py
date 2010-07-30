@@ -499,7 +499,7 @@ def handle_mkcol(environ, start_response):
     
     os.mkdir(real_path)
     
-    start_response('200 OK', [])
+    start_response('201 Created', [])
     return ""
 
 def handle_delete(environ, start_response):
@@ -513,7 +513,7 @@ def handle_delete(environ, start_response):
     else:
         os.unlink(real_path)
     
-    start_response('200 OK', [])
+    start_response('204 No Content', [])
     return ""
 
 def handle_copy_move(environ, start_response):
