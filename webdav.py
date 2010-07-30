@@ -569,7 +569,7 @@ def handle_dirindex(environ, start_response, message = None):
     
     files.sort(key = lambda f: not os.path.isdir(os.path.join(real_path, f)))
     
-    start_response('200 OK', [('Content-Type', 'text/html')])
+    start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8')])
     t = dirindex.Template(
         real_url = real_url, real_path = real_path,
         files = files, has_parent = has_parent,
