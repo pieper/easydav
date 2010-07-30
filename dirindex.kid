@@ -39,7 +39,7 @@ def url_to_unicode(url):
     <table>
     <tr><th>Filename</th><th>Last modified</th><th>Size</th><th>Type</th><th>Select</th></tr>
     <tr py:if="has_parent">
-        <td><a href="../">..</a></td>
+        <td><a href="webdav.get_real_url(os.path.join(real_path, '..'), root_url)">..</a></td>
         <td>&nbsp;</td>
         <td class="size"></td>
         <td>Directory</td>
