@@ -145,6 +145,8 @@ This is because Apache strips the last part of urls like
 http://domain.com/dir/#fragment. I don't know a workaround, and I'm not sure
 what harm this causes. Possibly something with strange filenames.
 
+File timestamps are not preserved while uploading. May depend on client.
+
 Missing features
 ================
 The server implements WebDAV to level 1. The locking mechanisms in level 2 are
