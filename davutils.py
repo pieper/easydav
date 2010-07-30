@@ -186,7 +186,7 @@ def add_to_zip_recursively(zipobj, real_path, root_dir, check_read):
         
         assert path[:len(root_dir)] == root_dir
         rel_path = path[len(root_dir):]
-        rel_path = rel_path.encode('cp437')
+        rel_path = rel_path.encode('cp437', 'replace')
         zipobj.write(path, rel_path)
 
 def compare_path(real_path, patterns):

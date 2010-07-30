@@ -23,6 +23,9 @@ EasyDAV requires Python 2.5 or newer (but not 3.x), the Kid template library
 and flup WSGI library. Flup can also easily be replaced with any other
 WSGI-compatible library.
 
+Debian packages required:
+python python-kid python-flup
+
 Installation
 ============
 
@@ -104,11 +107,20 @@ implemented.
 
 Configurations 2) or 3) above are preferred for client compatibility testing.
 The test method is as follows:
-1) Download the test file set from http://kapsi.fi/~jpa/stuff/other/testfiles.zip
-   and extract it.
+1) Download the test file set from http://kapsi.fi/~jpa/stuff/other/testfiles.tar.gz
+   and extract it. Verify that the filenames are correct:
+    Test file set
+    Test file set/100Mnull
+    Test file set/Pictures
+    Test file set/Pictures/Chýnovská_jeskyně(4).jpg
+    Test file set/Pictures/Hawaiian Eruption-numbers.svg
+    Test file set/Pictures/Laufwasserkraftwerk Muehltal.jpg
+    Test file set/Pictures/Monarch Butterfly Danaus plexippus Feeding Down 3008px.jpg
+    Test file set/ÅÄÖåäö
+    Test file set/ÅÄÖåäö/Empty file.txt.txt
 2) Mount the WebDAV directory.
 3) Copy all test files to the WebDAV directory.
-4) Using the WebDAV client, copy 'Test file set' to 'Test file set ÅÄÖåäö'.
+4) Using the WebDAV client, copy 'Test file set' to another name.
 5) Using the WebDAV client, rename 'Test file set' to 'Test file set after move'.
 6) Verify that the special characters in file names display the same way through
    WebDAV client as they do on the local system.
@@ -117,7 +129,7 @@ The test method is as follows:
    also.
 8) If the WebDAV client emulates filesystem access, open one of the
    pictures in a image viewer.
-9) Using the WebDAV client, download the 'Test file set ÅÄÖåäö' back to local
+9) Using the WebDAV client, download the 'Test file set after move' back to local
    system. Verify that the contents are identical to the original test file set.
 10) Using the WebDAV client, remove both folders from the server.
 
