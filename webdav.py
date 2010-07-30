@@ -619,10 +619,17 @@ def handle_post(environ, start_response):
         datafile = tempfile.TemporaryFile()
         zipobj = zipfile.ZipFile(datafile, 'w', zipfile.ZIP_DEFLATED, True)
         
+        def check_read(path):
+            try:
+                assert_read(path)
+                return True
+            except DAVError:
+                return False
+        
         for f in filenames:
             file_path = os.path.join(real_path, f)
-            assert_write(file_path)
-            add_to_zip_recursively(zipobj, file_path, config.root_dir)
+            assert_read(file_path)
+            add_to_zip_recursively(zipobj, file_path, config.root_dir, check_read)
         
         zipobj.close()
         

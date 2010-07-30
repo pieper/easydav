@@ -149,14 +149,16 @@ def add_to_dict_list(dictionary, key, item):
     dictionary[key].append(item)
 
 def search_directory(directory, depth = -1):
-    '''Find all files under a directory tree, yielding paths.
-    Depth is the recursion limit:
+    '''Find all files and directories under a directory tree,
+    yielding paths. Depth is the recursion limit:
         0 == yield just the start directory,
         1 == yield start directory and files there,
         -1 == infinite.
     '''
+    
+    yield directory
+    
     if depth == 0 or not os.path.isdir(directory):
-        yield directory
         return
     
     for filename in os.listdir(directory):
@@ -167,20 +169,24 @@ def search_directory(directory, depth = -1):
         else:
             yield path
 
-def add_to_zip_recursively(zipobj, real_path, root_dir):
+def add_to_zip_recursively(zipobj, real_path, root_dir, check_read):
     '''Adds the file at real_path, and if it is a directory,
     all files under it to a ZIP archive.
     Filenames are converted from UTF-8 to CP437.
     Root_dir is stripped from beginning of each file name.
+    Check_read is a function that returns False for files that
+    should not be included in archive.
     '''
     if not root_dir.endswith('/'):
         root_dir += '/'
     
-    files = search_directory(real_path)
-    for path in files:
+    for path in search_directory(real_path):
+        if not os.path.isdir(path) or not check_read(path):
+            continue
+        
         assert path[:len(root_dir)] == root_dir
         rel_path = path[len(root_dir):]
-        rel_path = unicode(rel_path, 'utf-8').encode('cp437')
+        rel_path = rel_path.encode('cp437')
         zipobj.write(path, rel_path)
 
 def compare_path(real_path, patterns):
