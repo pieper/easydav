@@ -22,7 +22,6 @@ __version__ = "0.1-dev"
 import cgi
 import kid
 import kid.parser
-import mimetypes
 import os
 import os.path
 import shutil
@@ -277,6 +276,10 @@ property_handlers = {
         lambda path: get_rfcformat(os.path.getmtime(path)),
         set_mtime
     ),
+    '{DAV:}getcontenttype': (
+        get_mimetype,
+        None
+    ),
     '{DAV:}resourcetype': (
         get_resourcetype,
         None
@@ -476,13 +479,9 @@ def handle_get(environ, start_response):
     if not check_ifmatch(environ, real_path):
         raise DAVError('412 Precondition Failed')
     
-    mimetype = mimetypes.guess_type(real_path)[0]
-    if not mimetype:
-        mimetype = 'application/octet-stream'
-    
     infile = open(real_path, 'rb')
     start_response('200 OK',
-        [('Content-Type', mimetype),
+        [('Content-Type', get_mimetype(real_path)),
          ('E-Tag', create_etag(real_path)),
          ('Content-Length', str(os.path.getsize(real_path)))])
     return read_blocks(infile)

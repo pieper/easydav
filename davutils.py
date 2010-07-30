@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import mimetypes
 import time
 import os.path
 from fnmatch import fnmatchcase
@@ -111,6 +112,12 @@ def pretty_unit(value, base=1000, minunit=None, format="%0.1f"):
             u = u * base
         else:
             return format % v + " " + unit
+
+def get_mimetype(real_path):
+    mimetype = mimetypes.guess_type(real_path)[0]
+    if not mimetype:
+        mimetype = 'application/octet-stream'
+    return mimetype
 
 def create_etag(real_path):
     '''Get an unique identifier for this revision of the file.
