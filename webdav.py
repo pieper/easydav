@@ -120,7 +120,7 @@ def get_root_url(environ):
         url = wsgiref.util.guess_scheme(environ) # 'http' or 'https'
         url += '://' + environ['HTTP_HOST']
         if environ.has_key('REQUEST_URI'):
-            url += environ['REQUEST_URI']
+            url += unicode(urllib.unquote(environ['REQUEST_URI']), 'utf-8')
             path = get_path(environ)
             if path:
                 # Remove the WebDAV relative path from the end of the url
@@ -142,13 +142,13 @@ def get_path(environ):
     Any leading and trailing slashes are removed from result so
     that e.g. os.path.dirname() works correctly.
     '''
-    path = environ.get('PATH_INFO', '')
-    return urllib.unquote(path).strip('/')
+    path = unicode(urllib.unquote(environ.get('PATH_INFO', '')), 'utf-8')
+    return path.strip('/')
 
 def get_destination(environ):
     '''Get the path argument from Destination header.'''
     request_url = environ.get('HTTP_DESTINATION', '')
-    request_url = urllib.unquote(request_url)
+    request_url = unicode(urllib.unquote(request_url), 'utf-8')
     my_url = get_root_url(environ)
     
     if not request_url.startswith(my_url):
