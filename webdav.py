@@ -43,6 +43,10 @@ import multistatus
 import dirindex
 
 def assert_read(real_path):
+    '''Verify that a remote web dav user is allowed to read this path,
+    and that the path exists. Throws DAVError otherwise.
+    The path can be either a file or a directory.
+    '''
     if not path_inside_directory(real_path, config.root_dir):
         raise DAVError('403 Permission Denied: Path is outside root_dir')
     
@@ -56,6 +60,13 @@ def assert_read(real_path):
         raise DAVError('403 Permission Denied: restrict_access')
 
 def assert_write(real_path):
+    '''Verify that a remote web dav user is allowed to write this path.
+    Throws DAVError otherwise.
+    
+    If the path does not exist, checks that the user is allowed to create
+    a directory or a file at this path.
+    If the path exists, checks that the file or directory can be overwritten.
+    '''
     if not path_inside_directory(real_path, config.root_dir):
         raise DAVError('403 Permission Denied: Path is outside root_dir')
     
@@ -77,36 +88,26 @@ def assert_write(real_path):
     if compare_path(real_path, config.restrict_write):
         raise DAVError('403 Permission Denied: restrict_write')
 
-def get_path_for_read(request_path):
-    '''Verify that a remote web dav user is allowed to read this path,
-    and that the path exists. Throws DAVError otherwise.
-    Returns path for the file in filesystem, based on config.root_dir.
-    The path can be either a file or a directory.
+def get_real_path(request_path, mode):
+    '''Convert a path relative to repository root to a complete file system
+    path and check access permissions. Environment dictionary can be passed
+    instead of request_path, in which case this function will first call
+    get_path().
     
-    Argument can be either a string for the request path, relative to
-    root url, or a dictionary in which case get_path() is used to
-    retrieve the path.
+    Mode is either 'r' or 'w'.
     '''
+    assert mode in ['r', 'w']
+    
     if isinstance(request_path, dict):
         request_path = get_path(request_path)
     
     real_path = os.path.join(config.root_dir, request_path)
-    assert_read(real_path)
-    return real_path
-
-def get_path_for_write(request_path):
-    '''Verify that a remote web dav user is allowed to write this path.
-    Throws DAVError otherwise. Returnss path for the file in filesystem.
     
-    If the path does not exist, checks that the user is allowed to create
-    a directory or a file at this path.
-    If the path exists, checks that the file or directory can be overwritten.
-    '''
-    if isinstance(request_path, dict):
-        request_path = get_path(request_path)
+    if mode == 'w':
+        assert_write(real_path)
+    else:
+        assert_read(real_path)
     
-    real_path = os.path.join(config.root_dir, request_path)
-    assert_write(real_path)
     return real_path
 
 def get_root_url(environ):
@@ -336,7 +337,7 @@ def parse_propfind(environ):
 def handle_propfind(environ, start_response):
     request_depth = get_depth(environ)
     request_props = parse_propfind(environ)
-    real_path = get_path_for_read(environ)
+    real_path = get_real_path(environ, 'r')
     root_url = get_root_url(environ)
     
     result_files = []
@@ -406,7 +407,7 @@ def parse_proppatch(environ):
     return instructions
 
 def handle_proppatch(environ, start_response):
-    real_path = get_path_for_write(environ)
+    real_path = get_real_path(environ, 'w')
     real_url = get_real_url(real_path, get_root_url(environ))
     
     propstats = {}
@@ -436,7 +437,7 @@ def handle_proppatch(environ, start_response):
     return [t.serialize(output = 'xml')]
 
 def handle_put(environ, start_response):
-    real_path = get_path_for_write(environ)
+    real_path = get_real_path(environ, 'w')
     byte_count = get_length(environ)
     
     if os.path.isdir(real_path):
@@ -460,7 +461,7 @@ def handle_put(environ, start_response):
     return ""
 
 def handle_get(environ, start_response):
-    real_path = get_path_for_read(environ)
+    real_path = get_real_path(environ, 'r')
     
     if os.path.isdir(real_path):
         return handle_dirindex(environ, start_response)
@@ -480,7 +481,7 @@ def handle_get(environ, start_response):
     return read_blocks(infile)
 
 def handle_mkcol(environ, start_response):
-    real_path = get_path_for_write(environ)
+    real_path = get_real_path(environ, 'w')
     
     if os.path.exists(real_path):
         raise DAVError('405 Method Not Allowed: Collection already exists')
@@ -495,7 +496,7 @@ def handle_mkcol(environ, start_response):
     return ""
 
 def handle_delete(environ, start_response):
-    real_path = get_path_for_write(environ)
+    real_path = get_real_path(environ, 'w')
     
     if not os.path.exists(real_path):
         raise DAVError('404 Not Found')
@@ -510,8 +511,8 @@ def handle_delete(environ, start_response):
 
 def handle_copy_move(environ, start_response):
     depth = get_depth(environ)
-    real_source = get_path_for_read(get_path(environ))
-    real_dest = get_path_for_write(get_destination(environ))
+    real_source = get_real_path(get_path(environ), 'r')
+    real_dest = get_real_path(get_destination(environ), 'w')
     
     new_resource = not os.path.exists(real_dest)
     if not new_resource:
@@ -545,7 +546,7 @@ def handle_dirindex(environ, start_response, message = None):
     '''Handle a GET request for a directory.
     Result is unimportant for DAV clients and only ment of WWW browsers.
     '''
-    real_path = get_path_for_read(environ)
+    real_path = get_real_path(environ, 'r')
     root_url = get_root_url(environ)
     real_url = get_real_url(real_path, root_url)
     
@@ -574,7 +575,7 @@ def handle_post(environ, start_response):
     Used for file uploads and deletes in the HTML GUI.
     '''
     fields = cgi.FieldStorage(fp = environ['wsgi.input'], environ = environ)
-    real_path = get_path_for_write(environ)
+    real_path = get_real_path(environ, 'r')
     message = ""
     
     if fields.getfirst('file'):
@@ -618,9 +619,13 @@ def handle_post(environ, start_response):
             add_to_zip_recursively(zipobj, file_path, config.root_dir)
         
         zipobj.close()
-        datafile.seek(0)
         
-        start_response('200 OK', [('Content-Type', 'application/zip')])
+        start_response('200 OK', [
+            ('Content-Type', 'application/zip'),
+            ('Content-Length', str(datafile.tell()))
+        ])
+        
+        datafile.seek(0)
         return read_blocks(datafile)
     
     return handle_dirindex(environ, start_response, message)

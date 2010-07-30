@@ -18,3 +18,13 @@ RewriteBase /~user/webdav/
 # before new settings come to effect.
 RewriteCond %{REQUEST_FILENAME} !webdav.cgi
 RewriteRule ^(.*)$ webdav.cgi/$1 [L]
+
+# Uncomment this to use HTTP authentication to limit access.
+# Note that Basic authorization is not very secure, you might prefer HTTPS.
+# Create password file with the command:
+# htpasswd -c /home/foobar/htpasswd_webdav username
+# Omit -c when adding new users to existing file.
+#AuthName "WebDAV"
+#AuthType Basic
+#AuthUserFile /home/foobar/htpasswd_webdav
+#require valid-user

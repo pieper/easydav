@@ -27,32 +27,48 @@ Installation
 ============
 
 First create a configuration file for the script by copying webdavconfig.py.example
-to webdavconfig.py. You must set atleast '''root_dir''' in this file. This is
+to webdavconfig.py. You must set atleast *root_dir* in this file. This is
 the filesystem path to the root folder that will contain the files accessible
 through WebDAV.
 
 Possible deployment methods are:
- 1) A standalone server, using wsgiref package. Mostly for testing purposes.
+1) A standalone server, using wsgiref package. Mostly for testing purposes.
    
-    Just run webdav.py. The server will be on http://localhost:8080/.
-    Port and host can be changed in the end of webdav.py.
+   Just run webdav.py. The server will be on http://localhost:8080/.
+   Port and host can be changed in the end of webdav.py.
 
- 2) A normal CGI script under Apache or other webserver.
+2) A normal CGI script under Apache or other webserver.
 
-    Copy the files to a folder under webserver document root, for example
-    to ~/public_html/webdav. Copy htaccess_example.txt to .htaccess and
-    change the '''RewriteBase''' in this file.
+   Copy the files to a folder under webserver document root, for example
+   to ~/public_html/webdav. Copy htaccess_example.txt to .htaccess and
+   change the *RewriteBase* in this file.
 
-    Alternatively, don't create .htaccess and you can access the directory
-    with the url http://domain.com/~user/webdav/webdav.cgi/. In that case
-    you might want to take steps to protect webdavconfig.py from access
-    through web server, by e.g. setting chmod 700.
+   Alternatively, don't create .htaccess and you can access the directory
+   with the url http://domain.com/~user/webdav/webdav.cgi/. In that case
+   you might want to take steps to protect webdavconfig.py from access
+   through web server, by e.g. setting chmod 700.
 
- 3) An FCGI script under Apache or other webserver.
+3) An FCGI script under Apache or other webserver.
 
-    Do as in 2), and after verifying functionality, change the script name
-    in .htaccess to '''webdav.fcgi'''. Note that when using FCGI, any changes
-    you make to webdavconfig.py don't come to effect until you kill the process.
+   Do as in 2), and after verifying functionality, change the script name
+   in .htaccess to *webdav.fcgi*. Note that when using FCGI, any changes
+   you make to webdavconfig.py don't come to effect until you kill the process.
+
+Configuration file
+==================
+
+The configuration file, *webdavconfig.py*, has the following settings:
+- *root_dir:*
+  The file system path to the directory where files will be stored.
+- *root_url:*
+  Complete url to the repository on web, or None to decide automatically.
+- *restrict_access:*
+  List of file name patterns that can not be accessed at all, not read not
+  written. They also won't show up in directory listings.
+- *restrict_write:*
+  List of files that cannot be written. These will show up in directory listing.
+  They cannot be directly copied or removed, but can be when the action is
+  performed on a whole directory.
 
 Security
 ========
@@ -62,13 +78,49 @@ with for example Apache mod_auth. Most WebDAV clients support HTTPS and Digest
 authentication, so use either of them so that passwords are not transmitted
 in plain text.
 
-Every step has been taken to protect the script from accessing files outside
-'''root_dir'''. The worst the WebDAV users can do is fill up the hard drive.
+Every effort has been taken to protect the script from accessing files outside
+*root_dir*. The worst the WebDAV users can do is fill up the hard drive.
 
 When the root directory is accessible through web server (like when managing
 web pages through WebDAV), users might upload an executable file. The default
 configuration prohibits writing to .php, .pl, .cgi and .fcgi files. You should
 add any other extensions recognized by your web server.
+
+Test method
+===========
+
+Each release is tested automatically in the following configurations:
+1) Stand-alone through Python's SimpleHTTPServer (by running webdav.py).
+2) Under Apache vhost with FCGI interface.
+3) Under Apache userdir with CGI interface.
+
+Currently automatic testing includes the litmus WebDAV test suite, which aims
+to verify standard compatibility. The features required by test sets "props"
+and "locks" are currently not supported.
+http://www.webdav.org/neon/litmus/
+
+Automatic regression tests for the security features are planned but not yet
+implemented.
+
+Configurations 2) or 3) above are preferred for client compatibility testing.
+The test method is as follows:
+1) Download the test file set from http://kapsi.fi/~jpa/stuff/other/testfiles.zip
+   and extract it.
+2) Mount the WebDAV directory.
+3) Copy all test files to the WebDAV directory.
+4) Using the WebDAV client, copy 'Testfiles' to 'Testfiles_ÅÄÖåäö'.
+5) Using the WebDAV client, rename 'Testfiles' to 'Testfiles after move'.
+6) Verify that the special characters in file names display the same way through
+   WebDAV client as they do on the local system.
+7) Using a web browser, check that the file names display correctly in the HTML
+   interface. This verifies that the character set is correct on the server side
+   also.
+8) Using the WebDAV client, download the 'Testfiles_ÅÄÖåäö' back to local
+   system. Verify that the contents are identical to the original test file set.
+9) Using the WebDAV client, remove both folders from the server.
+
+Any errors at any point of the procedure should be noted in the client support
+table.
 
 Known bugs
 ==========
@@ -86,4 +138,8 @@ not supported. This probably harms interoperation with Microsoft Office.
 
 The server supports only predefined properties. Custom properties cannot be set
 and therefore the litmus testset 'props' fails.
+
+The server does not support per-user access restrictions. These could be
+implemented by installing multiple instances of the program and using the
+per-file access restrictions to deny writing in one installation.
 
