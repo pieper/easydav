@@ -3,10 +3,11 @@
 import os.path
 import webdav
 import davutils
+import urllib
 ?>
 <html xmlns:py="http://purl.org/kid/ns#" xmlns="http://www.w3.org/1999/xhtml">
 <head>
-    <title>Index for ${real_url}</title>
+    <title>Index for ${urllib.unquote(real_url)}</title>
     <style type="text/css">
         tr:nth-child(even) {background-color: #CCE;}
         tr:nth-child(odd) {background-color: #EEE;}
@@ -17,7 +18,7 @@ import davutils
     </style>
 </head>
 <body>
-    <h1>Index for ${real_url}</h1>
+    <h1>Index for ${urllib.unquote(real_url)}</h1>
     <p>Mount this directory using WebDAV with url <a href="${real_url}">${real_url}</a>.</p>
 
     <h2>Upload a file</h2>
@@ -44,7 +45,7 @@ import davutils
     </tr>
     <tr py:for="filename in files">
         <?python file_path = os.path.join(real_path, filename) ?>
-        <td><a href="${filename}">${filename}</a></td>
+        <td><a href="${real_url + filename}">${filename}</a></td>
         <td>${davutils.get_usertime(os.path.getmtime(file_path))}</td>
         <td class="size" py:if="not os.path.isdir(file_path)">
             ${davutils.pretty_unit(os.path.getsize(file_path), 1024, 0, '%0.2f') + 'B'}
