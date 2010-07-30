@@ -38,9 +38,8 @@ import zipfile
 from davutils import *
 import webdavconfig as config
 
-kid.enable_import()
-import multistatus
-import dirindex
+multistatus = kid.load_template('multistatus.kid')
+dirindex = kid.load_template('dirindex.kid')
 
 def assert_read(real_path):
     '''Verify that a remote web dav user is allowed to read this path,
