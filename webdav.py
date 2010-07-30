@@ -158,12 +158,17 @@ def get_destination(environ):
 
 def get_real_url(real_path, root_url):
     '''Get a fully specified URI for the file referenced
-    by path.
+    by path. The URL is encoded with % escapes.
     '''
     root = os.path.normpath(config.root_dir) + '/'
-    real_path = os.path.normpath(real_path) + '/'
-    assert real_path[:len(root)] == root
-    return urlparse.urljoin(root_url, real_path[len(root):])
+    real_path_slash = os.path.normpath(real_path) + '/'
+    assert real_path_slash[:len(root)] == root
+    rel_path = real_path_slash[len(root):]
+    
+    if not os.path.isdir(real_path):
+        rel_path = rel_path.rstrip('/') # No trailing slash for files
+    
+    return urllib.quote(urlparse.urljoin(root_url, rel_path))
 
 def get_depth(environ, default = 0):
     '''Get the Depth: -http header value.
