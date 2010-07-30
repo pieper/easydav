@@ -571,7 +571,7 @@ def handle_dirindex(environ, start_response, message = None):
     t = dirindex.Template(
         real_url = real_url, real_path = real_path,
         files = files, has_parent = has_parent,
-        message = message
+        message = message, root_url = root_url
     )
     return [t.serialize(output = 'xhtml')]
 
