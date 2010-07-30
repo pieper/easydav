@@ -119,8 +119,8 @@ def get_root_url(environ):
         url = wsgiref.util.guess_scheme(environ) # 'http' or 'https'
         url += '://' + environ['HTTP_HOST']
         if environ.has_key('REQUEST_URI'):
-            url += unicode(urllib.unquote(environ['REQUEST_URI']), 'utf-8')
-            path = get_path(environ)
+            url += environ['REQUEST_URI']
+            path = urllib.quote(get_path(environ).encode('utf-8'))
             if path:
                 # Remove the WebDAV relative path from the end of the url
                 url = url.rstrip('/')[:-len(path)]
@@ -159,6 +159,8 @@ def get_real_url(real_path, root_url):
     '''Get a fully specified URI for the file referenced
     by path. The URL is encoded with % escapes.
     '''
+    
+    # Get path relative to the root directory
     root = os.path.normpath(config.root_dir) + '/'
     real_path_slash = os.path.normpath(real_path) + '/'
     assert real_path_slash[:len(root)] == root

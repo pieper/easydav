@@ -8,6 +8,8 @@ root_dir = '/tmp'
 # Can usually be None, so that the program automatically decides the path
 # based on request.
 # If specified, should be like 'http://domain.com/webdav.cgi/'.
+# Any spaces and other special characters in the url must be encoded with the
+# percent notation (like %20 for space).
 root_url = None
 
 # Access restrictions
