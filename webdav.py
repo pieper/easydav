@@ -665,8 +665,9 @@ def main(environ, start_response):
     except:
         import traceback
         
+        exc = traceback.format_exc()
         if sys.stderr.isatty():
-            sys.stderr.write(traceback.format_exc())
+            sys.stderr.write(exc)
         
         try:
             start_response('500 Internal Server Error',
@@ -675,7 +676,7 @@ def main(environ, start_response):
             # Ignore duplicate start_response
             pass
         
-        return [traceback.format_exc()]
+        return [exc]
 
 if __name__ == '__main__':
     from wsgiref.simple_server import make_server
