@@ -673,6 +673,12 @@ def main(environ, start_response):
             start_response(e.httpstatus, [('Content-Type', 'text/plain')])
             return [e.httpstatus]
         
+        if get_length(environ):
+            # Apache gives error "(104)Connection reset by peer:
+            # ap_content_length_filter: apr_bucket_read() failed" if the script
+            # does not read body.
+            environ['wsgi.input'].read(get_length(environ))
+        
         start_response('501 Not implemented', [('Content-Type', 'text/plain')])
         return ["501 Not implemented"]
     except:

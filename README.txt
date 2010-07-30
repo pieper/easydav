@@ -108,16 +108,18 @@ The test method is as follows:
    and extract it.
 2) Mount the WebDAV directory.
 3) Copy all test files to the WebDAV directory.
-4) Using the WebDAV client, copy 'Testfiles' to 'Testfiles_ÅÄÖåäö'.
-5) Using the WebDAV client, rename 'Testfiles' to 'Testfiles after move'.
+4) Using the WebDAV client, copy 'Test file set' to 'Test file set ÅÄÖåäö'.
+5) Using the WebDAV client, rename 'Test file set' to 'Test file set after move'.
 6) Verify that the special characters in file names display the same way through
    WebDAV client as they do on the local system.
 7) Using a web browser, check that the file names display correctly in the HTML
    interface. This verifies that the character set is correct on the server side
    also.
-8) Using the WebDAV client, download the 'Testfiles_ÅÄÖåäö' back to local
+8) If the WebDAV client emulates filesystem access, open one of the
+   pictures in a image viewer.
+9) Using the WebDAV client, download the 'Test file set ÅÄÖåäö' back to local
    system. Verify that the contents are identical to the original test file set.
-9) Using the WebDAV client, remove both folders from the server.
+10) Using the WebDAV client, remove both folders from the server.
 
 Any errors at any point of the procedure should be noted in the client support
 table.
