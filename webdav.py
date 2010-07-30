@@ -479,11 +479,15 @@ def handle_get(environ, start_response):
     if not check_ifmatch(environ, real_path):
         raise DAVError('412 Precondition Failed')
     
-    infile = open(real_path, 'rb')
     start_response('200 OK',
         [('Content-Type', get_mimetype(real_path)),
          ('E-Tag', create_etag(real_path)),
          ('Content-Length', str(os.path.getsize(real_path)))])
+    
+    if environ['REQUEST_METHOD'] == 'HEAD':
+        return ''
+    
+    infile = open(real_path, 'rb')
     return read_blocks(infile)
 
 def handle_mkcol(environ, start_response):
@@ -648,6 +652,7 @@ request_handlers = {
     'PROPFIND': handle_propfind,
     'PROPPATCH': handle_proppatch,
     'GET': handle_get,
+    'HEAD': handle_get,
     'PUT': handle_put,
     'MKCOL': handle_mkcol,
     'DELETE': handle_delete,
