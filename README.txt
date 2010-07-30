@@ -1,9 +1,9 @@
-EasyDAV - A simple to deploy WSGI webdav implementation.
+% EasyDAV - A simple to deploy WSGI webdav implementation.
 
 License
-=======
+-------
 
-Copyright 2010 Petteri Aimonen <jpa@wd.mail.kapsi.fi>
+Copyright 2010 Petteri Aimonen <jpa at wd.mail.kapsi.fi>
 
 Redistribution and use in source and binary forms, with or without modification, are
 permitted provided that the following conditions are met:
@@ -17,7 +17,7 @@ permitted provided that the following conditions are met:
 
 
 System Requirements
-===================
+-------------------
 
 EasyDAV requires Python 2.5 or newer (but not 3.x), the Kid template library
 and flup WSGI library. Flup can also easily be replaced with any other
@@ -27,7 +27,7 @@ Debian packages required:
 python python-kid python-flup
 
 Installation
-============
+------------
 
 First create a configuration file for the script by copying webdavconfig.py.example
 to webdavconfig.py. You must set atleast *root_dir* in this file. This is
@@ -35,6 +35,7 @@ the filesystem path to the root folder that will contain the files accessible
 through WebDAV.
 
 Possible deployment methods are:
+
 1) A standalone server, using wsgiref package. Mostly for testing purposes.
    
    Just run webdav.py. The server will be on http://localhost:8080/.
@@ -58,7 +59,7 @@ Possible deployment methods are:
    you make to webdavconfig.py don't come to effect until you kill the process.
 
 Configuration file
-==================
+------------------
 
 The configuration file, *webdavconfig.py*, has the following settings:
 - *root_dir:*
@@ -74,7 +75,7 @@ The configuration file, *webdavconfig.py*, has the following settings:
   performed on a whole directory.
 
 Security
-========
+--------
 
 You should protect access to the WebDAV repository by using HTTP Authentication,
 with for example Apache mod_auth. Most WebDAV clients support HTTPS and Digest
@@ -90,9 +91,10 @@ configuration prohibits writing to .php, .pl, .cgi and .fcgi files. You should
 add any other extensions recognized by your web server.
 
 Test method
-===========
+-----------
 
 Each release is tested automatically in the following configurations:
+
 1) Stand-alone through Python's SimpleHTTPServer (by running webdav.py).
 2) Under Apache vhost with FCGI interface.
 3) Under Apache userdir with CGI interface.
@@ -107,6 +109,7 @@ implemented.
 
 Configurations 2) or 3) above are preferred for client compatibility testing.
 The test method is as follows:
+
 1) Download the test file set from http://kapsi.fi/~jpa/stuff/other/testfiles.tar.gz
    and extract it. Verify that the filenames are correct:
     Test file set
@@ -137,7 +140,7 @@ Any errors at any point of the procedure should be noted in the client support
 table.
 
 Known bugs
-==========
+----------
 
 When using CGI or FCGI interface, litmus warns that:
 WARNING: DELETE removed collection resource with Request-URI including fragment;
@@ -148,7 +151,7 @@ what harm this causes. Possibly something with strange filenames.
 File timestamps are not preserved while uploading. May depend on client.
 
 Missing features
-================
+----------------
 The server implements WebDAV to level 1. The locking mechanisms in level 2 are
 not supported. This probably harms interoperation with Microsoft Office.
 
