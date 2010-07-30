@@ -168,7 +168,8 @@ def get_real_url(real_path, root_url):
     if not os.path.isdir(real_path):
         rel_path = rel_path.rstrip('/') # No trailing slash for files
     
-    return urllib.quote(urlparse.urljoin(root_url, rel_path))
+    rel_path = urllib.quote(rel_path.encode('utf-8'))
+    return urlparse.urljoin(root_url, rel_path)
 
 def get_depth(environ, default = 0):
     '''Get the Depth: -http header value.
