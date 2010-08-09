@@ -67,6 +67,19 @@ def path_inside_directory(path, root):
     
     return path_parts[:len(root_parts)] == root_parts
 
+def get_relpath(path, root):
+    '''Get the relative path after the root path.
+    This differs from os.path.relpath slightly:
+    - The result never has trailing or leading / or ..
+    - The result is empty string if path == root
+    - Path must be inside root directory.
+    '''
+    path_parts = os.path.abspath(path).split(os.path.sep)
+    root_parts = os.path.abspath(root).split(os.path.sep)
+    
+    assert path_parts[:len(root_parts)] == root_parts
+    return os.path.sep.join(path_parts[len(root_parts):])
+
 def get_isoformat(timestamp):
     '''Format the timestamp according to ISO8601 / RFC3339.'''
     t = time.gmtime(timestamp)
@@ -309,6 +322,10 @@ if __name__ == '__main__':
     assert not path_inside_directory('/', '/tmp')
     assert not path_inside_directory('/tmp/../tmp/..', '/tmp')
     assert not path_inside_directory('..', '')
+    
+    assert get_relpath('/tmp/foobar', '/tmp') == 'foobar'
+    assert get_relpath('/tmp/', '/tmp') == ''
+    assert get_relpath('/foobar', '/') == 'foobar'
     
     test_dict = {}
     add_to_dict_list(test_dict, 'ankka', 'heppa')

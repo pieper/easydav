@@ -80,8 +80,7 @@ def assert_write(real_path):
         if not os.path.isdir(parent_dir):
             raise DAVError('409 Conflict: Parent is not directory')
         
-        if not os.access(parent_dir, os.W_OK):
-            raise DAVError('403 Permission Denied: Parent mode excludes write')
+        assert_write(parent_dir)
     else:
         if not os.access(real_path, os.W_OK):
             raise DAVError('403 Permission Denied: File mode excludes write')
@@ -507,6 +506,9 @@ def handle_mkcol(environ, start_response):
 
 def handle_delete(environ, start_response):
     real_path = get_real_path(environ, 'w')
+    
+    # For lock support, check write access also to parent directory.
+    assert_write(os.path.dirname(real_path))
     
     if not os.path.exists(real_path):
         raise DAVError('404 Not Found')
