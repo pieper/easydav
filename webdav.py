@@ -48,14 +48,14 @@ def assert_read(real_path):
     if not path_inside_directory(real_path, config.root_dir):
         raise DAVError('403 Permission Denied: Path is outside root_dir')
     
+    if compare_path(real_path, config.restrict_access):
+        raise DAVError('403 Permission Denied: restrict_access')
+    
     if not os.path.exists(real_path):
         raise DAVError('404 Not Found')
     
     if not os.access(real_path, os.R_OK):
         raise DAVError('403 Permission Denied: File mode excludes read')
-    
-    if compare_path(real_path, config.restrict_access):
-        raise DAVError('403 Permission Denied: restrict_access')
 
 def assert_write(real_path):
     '''Verify that a remote web dav user is allowed to write this path.
@@ -68,6 +68,12 @@ def assert_write(real_path):
     if not path_inside_directory(real_path, config.root_dir):
         raise DAVError('403 Permission Denied: Path is outside root_dir')
     
+    if compare_path(real_path, config.restrict_access):
+        raise DAVError('403 Permission Denied: restrict_access')
+    
+    if compare_path(real_path, config.restrict_write):
+        raise DAVError('403 Permission Denied: restrict_write')
+    
     if not os.path.exists(real_path):
         # Check parent directory for permission to create file
         parent_dir = os.path.dirname(real_path)
@@ -79,12 +85,6 @@ def assert_write(real_path):
     else:
         if not os.access(real_path, os.W_OK):
             raise DAVError('403 Permission Denied: File mode excludes write')
-
-    if compare_path(real_path, config.restrict_access):
-        raise DAVError('403 Permission Denied: restrict_access')
-    
-    if compare_path(real_path, config.restrict_write):
-        raise DAVError('403 Permission Denied: restrict_write')
 
 def get_real_path(request_path, mode):
     '''Convert a path relative to repository root to a complete file system
