@@ -4,14 +4,12 @@
 and cross-thread synchronization, while this code handles WebDAV lock semantics.
 '''
 
-from __future__ import with_statement
-import webdavconfig as config
 import os.path
 import davutils
 import sqlite3
 from uuid import uuid4
 import datetime
-import time
+from davutils import DAVError
 
 class Lock:
     def __init__(self, row):
@@ -25,6 +23,9 @@ class Lock:
     def __eq__(self, other):
         return isinstance(other, Lock) and other.urn == self.urn
 
+    def get_real_path(self):
+        return os.path.join(config.root_dir, self.path)
+
 class LockManager:
     def __init__(self):
         # Lock_db can be absolute path or relative to root dir.
@@ -32,35 +33,61 @@ class LockManager:
         newfile = not os.path.exists(dbpath)
         
         # Default timeout for SQL locks is 5 seconds
-        self.db_conn = sqlite3.connect(dbpath)
+        self.db_conn = sqlite3.connect(dbpath,
+            isolation_level = None,
+            timeout = config.lock_wait)
         self.db_conn.row_factory = sqlite3.Row
         self.db_cursor = self.db_conn.cursor()
         
         if newfile:
-            self.create_tables()
+            self._create_tables()
         else:
             self._purge_locks()
-            self.db_conn.commit()
     
     def _create_tables(self):
-        self.db_cursor.execute('''CREATE TABLE locks (
-            urn TEXT,
+        self._sql_query('''CREATE TABLE locks (
+            urn TEXT PRIMARY KEY,
             path TEXT,
             shared BOOLEAN,
             owner TEXT,
             infinite_depth BOOLEAN,
             valid_until TIMESTAMP)''')
-        self.db_conn.commit()
+        
+        self._sql_query('CREATE INDEX locks_idx1 ON locks (path)')
+        self._sql_query('CREATE INDEX locks_idx2 ON locks (valid_until)')
     
     def _purge_locks(self):
         '''Remove all expired locks from the database.'''
-        self.db_cursor.execute('''DELETE FROM locks WHERE
-            valid_until < DATETIME('now')''')
+        # To avoid unnecessary write lock on the database file,
+        # first check if such records exist.
+        self._sql_query('''SELECT 1 FROM locks WHERE
+            valid_until < DATETIME('now') LIMIT 1''')
+        
+        if self.db_cursor.fetchone() is not None:
+            self._sql_query('''DELETE FROM locks WHERE
+                valid_until < DATETIME('now')''')
     
-    def get_locks(self, real_path):
+    def _sql_query(self, *args, **kwargs):
+        '''Run a database query and wrap SQLite OperationalErrors, such
+        as locked databases.
+        '''
+        try:
+            self.db_cursor.execute(*args, **kwargs)
+        except sqlite3.OperationalError, e:
+            if 'locked' in e.message:
+                raise DAVError('503 Service Unavailable: Lock DB is busy')
+            else:
+                raise DAVError('500 Internal Server Error: Lock DB: ' + e.message)
+
+    def get_locks(self, real_path, depth):
         '''Returns all locks that apply to the resource defined by real_path.
+        This includes:
+         - Locks on the resource itself
+         - Locks on any parent collections
+         - If depth == -1, locks on any resources inside the collection
         Result is a list of Lock objects.
         '''
+        assert depth in [0, -1]
         rel_path = davutils.get_relpath(real_path, config.root_dir)
         
         path_exprs = ['path = ?']
@@ -68,16 +95,48 @@ class LockManager:
         
         # Construct a list of parent directories that have to be checked
         # for locks.
-        while rel_path:
-            rel_path = os.path.dirname(rel_path)
+        partial_path = rel_path
+        while partial_path:
+            partial_path = os.path.dirname(partial_path)
             path_exprs.append('(infinite_depth AND path = ?)')
-            path_args.append(rel_path)
+            path_args.append(partial_path)
 
-        self.db_cursor.execute('SELECT * FROM locks WHERE '
+        # Check for any resources inside this collection
+        if depth == -1:
+            if rel_path != '':
+                prefix = rel_path + '/'
+            else:
+                prefix = ''
+            
+            path_exprs.append('SUBSTR(path,0,?) = ?')
+            path_args.append(len(prefix))
+            path_args.append(prefix)
+
+        self._sql_query('SELECT * FROM locks WHERE '
             + ' OR '.join(path_exprs), path_args)
         return map(Lock, self.db_cursor.fetchall())
     
-    def lock_path(self, real_path, shared, owner, depth, timeout):
+    def validate_lock(self, real_path, urn):
+        '''Check that a lock with the specified urn exists and that it applies
+        to path specified by real_path. Returns True or False.
+        '''
+        self._sql_query('SELECT * FROM locks WHERE urn = ?', (urn, ))
+        row = self.db_cursor.fetchone()
+        
+        if row is None:
+            return False
+        
+        lock = Lock(row)
+        lock_real_path = os.path.join(config.root_dir, lock.path)
+        if real_path == lock_real_path:
+            return True
+        
+        if lock.infinite_depth:
+            return davutils.path_inside_directory(real_path, lock_real_path)
+        else:
+            return False
+    
+    def create_lock(self, real_path, shared, owner, depth, timeout):
         '''Create a lock for the resource defined by real_path. Arguments
         are as follows:
         real_path: full path to the resource in local file system
@@ -86,18 +145,138 @@ class LockManager:
         depth: -1 for infinite, 0 otherwise
         timeout: Client-requested lock expiration time in seconds from now.
                  Configuration may limit actual timeout.
+        
+        Returns a Lock object.
         '''
         assert depth in [-1, 0]
         
-        uuid = uuid4()
+        urn = uuid4().urn
         rel_path = davutils.get_relpath(real_path, config.root_dir)
         
         timeout = min(timeout, config.lock_max_time)
-        valid_until = datetime.datetime.now()
+        valid_until = datetime.datetime.utcnow()
         valid_until += datetime.timedelta(seconds = timeout)
         
-        row = [uuid, rel_path, shared, owner, depth == -1, valid_until]
+        self._sql_query('BEGIN IMMEDIATE TRANSACTION')
+        
+        try:
+            for lock in self.get_locks(real_path, depth):
+                if not lock.shared or not shared:
+                    # Allow only one exclusive lock
+                    raise DAVError('423 Locked')
+            
+            self._sql_query('INSERT INTO locks VALUES (?,?,?,?,?,?)',
+                (urn, rel_path, bool(shared), owner, depth == -1, valid_until))
+            self._sql_query('END TRANSACTION')
+        except:
+            self._sql_query('ROLLBACK')
+            raise
+        
+        self._sql_query('SELECT * FROM locks WHERE urn=?', (urn, ))
+        return Lock(self.db_cursor.fetchone())
+        
+    def release_lock(self, real_path, urn):
+        '''Remove a lock from database. The real_path must match a lock
+        with the specified urn.
+        '''
+        
+        self._sql_query('BEGIN IMMEDIATE TRANSACTION')
+        try:
+            if not self.validate_lock(real_path, urn):
+                raise DAVError('409 Conflict',
+                               '<DAV:lock-token-matches-request-uri/>')
+            
+            self._sql_query('DELETE FROM locks WHERE urn=?', (urn, ))
+            self._sql_query('END TRANSACTION')
+        except:
+            self._sql_query('ROLLBACK')
+            raise
 
-        self.db_cursor.execute('BEGIN IMMEDIATE TRANSACTION')
+    def refresh_lock(self, real_path, urn, timeout):
+        '''Refresh the given lock.'''
+        timeout = min(timeout, config.lock_max_time)
+        valid_until = datetime.datetime.utcnow()
+        valid_until += datetime.timedelta(seconds = timeout)
         
-        
+        self._sql_query('BEGIN IMMEDIATE TRANSACTION')
+        try:
+            if not self.validate_lock(real_path, urn):
+                raise DAVError('412 Precondition Failed',
+                               '<DAV:lock-token-matches-request-uri/>')
+            
+            self._sql_query('UPDATE locks SET valid_until=? WHERE urn=?',
+                (valid_until, urn))
+            self._sql_query('END TRANSACTION')
+        except:
+            self._sql_query('ROLLBACK')
+            raise
+
+
+if __name__ != '__main__':
+    import webdavconfig as config
+else:
+    import os, time, tempfile
+    print "Unit tests"
+    
+    class config:
+        '''Configuration for unit testing'''
+        root_dir = '/tmp'
+        lock_db = tempfile.mktemp()
+        lock_max_time = 3600
+        lock_wait = 5
+    
+    # Test basic access
+    mgr1 = LockManager()
+    
+    lock1 = mgr1.create_lock('/tmp/testfile', False, '', 0, 100)
+    
+    try:
+        assert not mgr1.create_lock('/tmp/testfile', False, '', 0, 100)
+    except DAVError:
+        pass
+    
+    mgr2 = LockManager()
+    try:
+        assert not mgr2.create_lock('/tmp/testfile', True, '', 0, 100)
+    except DAVError:
+        pass
+    
+    lock2 = mgr1.create_lock('/tmp/testfile2', True, '', -1, 100)
+    lock3 = mgr2.create_lock('/tmp/testfile2', True, '', -1, 100)
+    
+    assert mgr1.validate_lock(lock2.get_real_path(), lock2.urn)
+    assert mgr2.validate_lock(lock2.get_real_path(), lock2.urn)
+    
+    try:
+        assert not mgr1.create_lock('/tmp/testfile2/subdir', False, '', 0, 100)
+    except DAVError:
+        pass
+    
+    try:
+        assert not mgr1.create_lock('/tmp', False, '', -1, 100)
+    except DAVError:
+        pass
+    
+    mgr1.release_lock(lock1.get_real_path(), lock1.urn)
+    mgr1.release_lock(lock2.get_real_path(), lock2.urn)
+    mgr1.release_lock(lock3.get_real_path(), lock3.urn)
+    
+    assert not mgr1.validate_lock(lock1.get_real_path(), lock1.urn)
+    
+    # Test lock timeouts
+    lock1 = mgr1.create_lock('/tmp/testfile', False, '', 0, 2)
+    lock2 = mgr1.create_lock('/tmp/testfile2', False, '', 0, 2)
+    
+    time.sleep(1)
+    mgr1.refresh_lock(lock1.get_real_path(), lock1.urn, 10)
+    time.sleep(2)
+    
+    mgr2 = LockManager()
+    assert mgr2.validate_lock(lock1.get_real_path(), lock1.urn)
+    assert not mgr2.validate_lock(lock2.get_real_path(), lock2.urn)
+    
+    os.unlink(config.lock_db)
+    
+    print "Unit tests OK"
+    
+    

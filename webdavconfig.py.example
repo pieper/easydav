@@ -44,3 +44,18 @@ restrict_write = [
     '*.pl.*',
 ]
 
+# Lock configuration
+
+# Lock database file, set to None to disable lock support.
+# Path can be relative to root_dir or absolute.
+lock_db = '.easydav_locks'
+
+# Maximum timeout in seconds that clients can set for locks.
+# The default setting 3600 lets locks stay for 1 hour before
+# they have to be refreshed.
+lock_max_time = 3600
+
+# Internal timeout in seconds for accessing the lock database.
+# Default setting should be ok unless you start seeing
+# 503 Service Unavailable errors.
+lock_wait = 5
