@@ -40,7 +40,7 @@ import webdavconfig as config
 multistatus = kid.load_template('multistatus.kid')
 dirindex = kid.load_template('dirindex.kid')
 
-def assert_read(real_path):
+def assert_read(real_path, environ):
     '''Verify that a remote web dav user is allowed to read this path,
     and that the path exists. Throws DAVError otherwise.
     The path can be either a file or a directory.
@@ -57,7 +57,7 @@ def assert_read(real_path):
     if not os.access(real_path, os.R_OK):
         raise DAVError('403 Permission Denied: File mode excludes read')
 
-def assert_write(real_path):
+def assert_write(real_path, environ):
     '''Verify that a remote web dav user is allowed to write this path.
     Throws DAVError otherwise.
     
@@ -80,30 +80,42 @@ def assert_write(real_path):
         if not os.path.isdir(parent_dir):
             raise DAVError('409 Conflict: Parent is not directory')
         
-        assert_write(parent_dir)
+        if not os.access(parent_dir, os.W_OK):
+            raise DAVError('403 Permission Denied: Parent mode excludes write')
     else:
+        parent_dir = None
         if not os.access(real_path, os.W_OK):
             raise DAVError('403 Permission Denied: File mode excludes write')
+    
+    if config.lock_db:
+        if not environ.has_key('lockmanager'):
+            environ['lockmanager'] = LockManager()
+        
+        if environ['lockmanager'].get_locks(real_path, 0):
+            raise DAVError('423 Locked')
+        
+        if parent_dir and environ['lockmanager'].get_locks(parent_dir, 0):
+            raise DAVError('423 Locked: Parent directory')
+        
 
-def get_real_path(request_path, mode):
+def get_real_path(environ, mode, request_path = None):
     '''Convert a path relative to repository root to a complete file system
-    path and check access permissions. Environment dictionary can be passed
-    instead of request_path, in which case this function will first call
-    get_path().
+    path and check access permissions. If request_path is not given, this
+    function will first call get_path(). 
     
     Mode is either 'r' or 'w'.
     '''
     assert mode in ['r', 'w']
     
-    if isinstance(request_path, dict):
+    if request_path is None:
         request_path = get_path(request_path)
     
     real_path = os.path.join(config.root_dir, request_path)
     
     if mode == 'w':
-        assert_write(real_path)
+        assert_write(real_path, environ)
     else:
-        assert_read(real_path)
+        assert_read(real_path, environ)
     
     return real_path
 
@@ -457,6 +469,9 @@ def handle_put(environ, start_response):
     
     new_file = not os.path.exists(real_path)
     if not new_file:
+        # Unlink the old file to reset mode bits.
+        # This has the additional benefit that old GET operations can
+        # continue even if the file is replaced.
         os.unlink(real_path)
     
     outfile = open(real_path, 'wb')

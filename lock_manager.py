@@ -12,6 +12,7 @@ import datetime
 from davutils import DAVError
 
 class Lock:
+    '''Convenience wrapper for database rows returned from LockManager.'''
     def __init__(self, row):
         self.urn = row[0]
         self.path = row[1]
@@ -23,16 +24,12 @@ class Lock:
     def __eq__(self, other):
         return isinstance(other, Lock) and other.urn == self.urn
 
-    def get_real_path(self):
-        return os.path.join(config.root_dir, self.path)
-
 class LockManager:
     def __init__(self):
         # Lock_db can be absolute path or relative to root dir.
         dbpath = os.path.join(config.root_dir, config.lock_db)
         newfile = not os.path.exists(dbpath)
         
-        # Default timeout for SQL locks is 5 seconds
         self.db_conn = sqlite3.connect(dbpath,
             isolation_level = None,
             timeout = config.lock_wait)
@@ -79,8 +76,8 @@ class LockManager:
             else:
                 raise DAVError('500 Internal Server Error: Lock DB: ' + e.message)
 
-    def get_locks(self, real_path, depth):
-        '''Returns all locks that apply to the resource defined by real_path.
+    def get_locks(self, rel_path, depth):
+        '''Returns all locks that apply to the resource defined by rel_path.
         This includes:
          - Locks on the resource itself
          - Locks on any parent collections
@@ -88,8 +85,7 @@ class LockManager:
         Result is a list of Lock objects.
         '''
         assert depth in [0, -1]
-        rel_path = davutils.get_relpath(real_path, config.root_dir)
-        
+        assert not rel_path.startswith('/')
         path_exprs = ['path = ?']
         path_args = [rel_path]
         
@@ -116,9 +112,9 @@ class LockManager:
             + ' OR '.join(path_exprs), path_args)
         return map(Lock, self.db_cursor.fetchall())
     
-    def validate_lock(self, real_path, urn):
+    def validate_lock(self, rel_path, urn):
         '''Check that a lock with the specified urn exists and that it applies
-        to path specified by real_path. Returns True or False.
+        to path specified by rel_path. Returns True or False.
         '''
         self._sql_query('SELECT * FROM locks WHERE urn = ?', (urn, ))
         row = self.db_cursor.fetchone()
@@ -127,19 +123,18 @@ class LockManager:
             return False
         
         lock = Lock(row)
-        lock_real_path = os.path.join(config.root_dir, lock.path)
-        if real_path == lock_real_path:
+        if rel_path == lock.path:
             return True
         
         if lock.infinite_depth:
-            return davutils.path_inside_directory(real_path, lock_real_path)
+            return davutils.path_inside_directory(rel_path, lock.path)
         else:
             return False
     
-    def create_lock(self, real_path, shared, owner, depth, timeout):
-        '''Create a lock for the resource defined by real_path. Arguments
+    def create_lock(self, rel_path, shared, owner, depth, timeout):
+        '''Create a lock for the resource defined by rel_path. Arguments
         are as follows:
-        real_path: full path to the resource in local file system
+        rel_path: full path to the resource in local file system
         shared: True for shared lock, False for exclusive lock
         owner: client-provided XML string describing the owner of the lock
         depth: -1 for infinite, 0 otherwise
@@ -149,10 +144,9 @@ class LockManager:
         Returns a Lock object.
         '''
         assert depth in [-1, 0]
+        assert not rel_path.startswith('/')
         
         urn = uuid4().urn
-        rel_path = davutils.get_relpath(real_path, config.root_dir)
-        
         timeout = min(timeout, config.lock_max_time)
         valid_until = datetime.datetime.utcnow()
         valid_until += datetime.timedelta(seconds = timeout)
@@ -160,7 +154,7 @@ class LockManager:
         self._sql_query('BEGIN IMMEDIATE TRANSACTION')
         
         try:
-            for lock in self.get_locks(real_path, depth):
+            for lock in self.get_locks(rel_path, depth):
                 if not lock.shared or not shared:
                     # Allow only one exclusive lock
                     raise DAVError('423 Locked')
@@ -175,14 +169,14 @@ class LockManager:
         self._sql_query('SELECT * FROM locks WHERE urn=?', (urn, ))
         return Lock(self.db_cursor.fetchone())
         
-    def release_lock(self, real_path, urn):
-        '''Remove a lock from database. The real_path must match a lock
+    def release_lock(self, rel_path, urn):
+        '''Remove a lock from database. The rel_path must match a lock
         with the specified urn.
         '''
         
         self._sql_query('BEGIN IMMEDIATE TRANSACTION')
         try:
-            if not self.validate_lock(real_path, urn):
+            if not self.validate_lock(rel_path, urn):
                 raise DAVError('409 Conflict',
                                '<DAV:lock-token-matches-request-uri/>')
             
@@ -192,7 +186,7 @@ class LockManager:
             self._sql_query('ROLLBACK')
             raise
 
-    def refresh_lock(self, real_path, urn, timeout):
+    def refresh_lock(self, rel_path, urn, timeout):
         '''Refresh the given lock.'''
         timeout = min(timeout, config.lock_max_time)
         valid_until = datetime.datetime.utcnow()
@@ -200,7 +194,7 @@ class LockManager:
         
         self._sql_query('BEGIN IMMEDIATE TRANSACTION')
         try:
-            if not self.validate_lock(real_path, urn):
+            if not self.validate_lock(rel_path, urn):
                 raise DAVError('412 Precondition Failed',
                                '<DAV:lock-token-matches-request-uri/>')
             
@@ -228,52 +222,52 @@ else:
     # Test basic access
     mgr1 = LockManager()
     
-    lock1 = mgr1.create_lock('/tmp/testfile', False, '', 0, 100)
+    lock1 = mgr1.create_lock('testfile', False, '', 0, 100)
     
     try:
-        assert not mgr1.create_lock('/tmp/testfile', False, '', 0, 100)
+        assert not mgr1.create_lock('testfile', False, '', 0, 100)
     except DAVError:
         pass
     
     mgr2 = LockManager()
     try:
-        assert not mgr2.create_lock('/tmp/testfile', True, '', 0, 100)
+        assert not mgr2.create_lock('testfile', True, '', 0, 100)
     except DAVError:
         pass
     
-    lock2 = mgr1.create_lock('/tmp/testfile2', True, '', -1, 100)
-    lock3 = mgr2.create_lock('/tmp/testfile2', True, '', -1, 100)
+    lock2 = mgr1.create_lock('testfile2', True, '', -1, 100)
+    lock3 = mgr2.create_lock('testfile2', True, '', -1, 100)
     
-    assert mgr1.validate_lock(lock2.get_real_path(), lock2.urn)
-    assert mgr2.validate_lock(lock2.get_real_path(), lock2.urn)
+    assert mgr1.validate_lock(lock2.path, lock2.urn)
+    assert mgr2.validate_lock(lock2.path, lock2.urn)
     
     try:
-        assert not mgr1.create_lock('/tmp/testfile2/subdir', False, '', 0, 100)
+        assert not mgr1.create_lock('testfile2/subdir', False, '', 0, 100)
     except DAVError:
         pass
     
     try:
-        assert not mgr1.create_lock('/tmp', False, '', -1, 100)
+        assert not mgr1.create_lock('', False, '', -1, 100)
     except DAVError:
         pass
     
-    mgr1.release_lock(lock1.get_real_path(), lock1.urn)
-    mgr1.release_lock(lock2.get_real_path(), lock2.urn)
-    mgr1.release_lock(lock3.get_real_path(), lock3.urn)
+    mgr1.release_lock(lock1.path, lock1.urn)
+    mgr1.release_lock(lock2.path, lock2.urn)
+    mgr1.release_lock(lock3.path, lock3.urn)
     
-    assert not mgr1.validate_lock(lock1.get_real_path(), lock1.urn)
+    assert not mgr1.validate_lock(lock1.path, lock1.urn)
     
     # Test lock timeouts
-    lock1 = mgr1.create_lock('/tmp/testfile', False, '', 0, 2)
-    lock2 = mgr1.create_lock('/tmp/testfile2', False, '', 0, 2)
+    lock1 = mgr1.create_lock('testfile', False, '', 0, 2)
+    lock2 = mgr1.create_lock('testfile2', False, '', 0, 2)
     
     time.sleep(1)
-    mgr1.refresh_lock(lock1.get_real_path(), lock1.urn, 10)
+    mgr1.refresh_lock(lock1.path, lock1.urn, 10)
     time.sleep(2)
     
     mgr2 = LockManager()
-    assert mgr2.validate_lock(lock1.get_real_path(), lock1.urn)
-    assert not mgr2.validate_lock(lock2.get_real_path(), lock2.urn)
+    assert mgr2.validate_lock(lock1.path, lock1.urn)
+    assert not mgr2.validate_lock(lock2.path, lock2.urn)
     
     os.unlink(config.lock_db)
     

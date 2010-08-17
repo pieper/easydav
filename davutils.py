@@ -18,6 +18,7 @@ class DAVError(Exception):
     status code.
     '''
     def __init__(self, httpstatus, body = None):
+        Exception.__init__(self, httpstatus)
         self.httpstatus = httpstatus
         self.body = body
     
@@ -65,6 +66,9 @@ def path_inside_directory(path, root):
     path_parts = os.path.abspath(path).split(os.path.sep)
     root_parts = os.path.abspath(root).split(os.path.sep)
     
+    if root_parts == ['', '']:
+        root_parts = [''] # When root is '/', split gives '',''
+    
     return path_parts[:len(root_parts)] == root_parts
 
 def get_relpath(path, root):
@@ -76,6 +80,9 @@ def get_relpath(path, root):
     '''
     path_parts = os.path.abspath(path).split(os.path.sep)
     root_parts = os.path.abspath(root).split(os.path.sep)
+    
+    if root_parts == ['', '']:
+        root_parts = [''] # When root is '/', split gives '',''
     
     assert path_parts[:len(root_parts)] == root_parts
     return os.path.sep.join(path_parts[len(root_parts):])
@@ -115,7 +122,7 @@ def pretty_unit(value, base=1000, minunit=None, format="%0.1f"):
     elif base == 1024:
         units = [' ', 'Ki', 'Mi', 'Gi', 'Ti', 'Pi', 'Ei', 'Zi', 'Yi']
     else:
-        raise InvalidBaseException("The unit base has to be 1000 or 1024")
+        raise ValueError("The unit base has to be 1000 or 1024")
     
     # Divide until below threshold or base
     v = float(value)
@@ -128,6 +135,9 @@ def pretty_unit(value, base=1000, minunit=None, format="%0.1f"):
             return format % v + " " + unit
 
 def get_mimetype(real_path):
+    '''Use mimetypes module to guess Content-Type for the file.
+    If it fails, use application/octet-stream.
+    '''
     mimetype = mimetypes.guess_type(real_path)[0]
     if not mimetype:
         mimetype = 'application/octet-stream'
@@ -232,7 +242,7 @@ def compare_path(real_path, patterns):
 
 def parse_if_list(string):
     '''Read a "List" structure as defined in RFC4918
-    Returns string, list of tuples (Type, Invert, Value).
+    Returns list of tuples (Type, Invert, Value).
     
     To make parsing easier, state tokens or ETags should not contain any of
     the following characters:
@@ -268,7 +278,7 @@ def parse_if_list(string):
     
     return results
 
-def parse_if_header(if_header, request_resource):
+def parse_if_header(if_header):
     '''Parse a HTTP If: -header. Returns a list of tuples of resource url and
     conditions. Each condition is a tuple of (Type, Invert, Value), where:
     Type is 'etag' or 'token', Invert is True or False and Value is a string.
@@ -278,14 +288,14 @@ def parse_if_header(if_header, request_resource):
     
     parse_if_header(
         '(<urn:uuid:181d4fae-7d8c-11d0-a765-00a0c91e6bf2> '
-        + '["I am an ETag"]) (["I am another ETag"])', 'index.html')
+        + '["I am an ETag"]) (["I am another ETag"])')
     
     should give:
     
-    [('index.html', 
+    [(None, 
         [('token', False, 'urn:uuid:181d4fae-7d8c-11d0-a765-00a0c91e6bf2'),
          ('etag', False, '"I am an ETag"')]),
-     ('index.html',
+     (None,
         [('etag', False, '"I am another ETag"')])
     ]
     
@@ -299,17 +309,17 @@ def parse_if_header(if_header, request_resource):
     
     if_header = if_header.strip()
     if if_header[0] == '(':
-        resource = request_resource
+        no_tag = True
         lists = re.findall(r'()\(([^\)]+)\)', if_header)
     else:
-        resource = None
+        no_tag = False
         # Group 1: Resource-Tag, Group 2: List contents
         lists = re.findall(r'<([^>]+)>\s*\(([^\)]+)\)', if_header)
     
     results = []
     for l_tag, l_contents in lists:
-        if resource:
-            l_tag = resource
+        if no_tag:
+            l_tag = None
         results.append((l_tag, parse_if_list(l_contents)))
     return results
 
@@ -318,6 +328,7 @@ if __name__ == '__main__':
     
     assert path_inside_directory('/tmp/foobar', '/tmp')
     assert path_inside_directory('/', '/')
+    assert path_inside_directory('/foobar', '/')
     assert path_inside_directory('foobar', '')
     assert not path_inside_directory('/', '/tmp')
     assert not path_inside_directory('/tmp/../tmp/..', '/tmp')
@@ -352,21 +363,21 @@ if __name__ == '__main__':
     
     assert (parse_if_header(
             '(<urn:uuid:181d4fae-7d8c-11d0-a765-00a0c91e6bf2> '
-            + '["I am an ETag"]) (["I am another ETag"])', 'index.html')
-        ==  [('index.html', 
+            + '["I am an ETag"]) (["I am another ETag"])')
+        ==  [(None, 
                 [('token', False, 'urn:uuid:181d4fae-7d8c-11d0-a765-00a0c91e6bf2'),
                 ('etag', False, '"I am an ETag"')]),
-            ('index.html',
+            (None,
                 [('etag', False, '"I am another ETag"')])
             ])
     
     assert (parse_if_header(
-            r'''<http://user:pass@test.com/~-._%20!$&'()*+,;=> (["Etagfoo"])''', '')
+            r'''<http://user:pass@test.com/~-._%20!$&'()*+,;=> (["Etagfoo"])''')
         ==  [(r'''http://user:pass@test.com/~-._%20!$&'()*+,;=''',
                 [('etag', False, r'"Etagfoo"')])
             ])
     
-    assert (parse_if_header('<foo>(Not["Etag"])', '')
+    assert (parse_if_header('<foo>(Not["Etag"])')
         == [('foo', [('etag', True, '"Etag"')])])
     
     print "Unit tests OK"
