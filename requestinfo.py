@@ -3,12 +3,14 @@
 import os.path
 import urlparse
 import urllib
+import wsgiref.util
 import xml.etree.ElementTree as ET
 from xml.parsers.expat import ExpatError
 
 import davutils
 from davutils import DAVError
 from lock_manager import LockManager
+import webdavconfig as config
 
 class RequestInfo(object):
     '''Parses WSGI environment dictionary and gives easy access to parameters
@@ -16,15 +18,17 @@ class RequestInfo(object):
     '''
     def __init__(self, environ):
         self.environ = environ
+        self.wsgi_input = environ['wsgi.input']
+        self._lockmanager = None
         self.root_url = self.get_root_url()
-        self._lock_manager = None
+        self.check_if_header()
     
-    def get_lock_manager(self):
-        if self._lock_manager is None and config.lock_db:
-            self._lock_manager = LockManager()
-        return self._lock_manager
+    def get_lockmanager(self):
+        if self._lockmanager is None and config.lock_db:
+            self._lockmanager = LockManager()
+        return self._lockmanager
     
-    lock_manager = property(get_lock_manager)
+    lockmanager = property(get_lockmanager)
     
     def get_root_url(self):
         '''Get the url where the webdav resource is located.
@@ -33,9 +37,10 @@ class RequestInfo(object):
         if config.root_url is not None:
             url = config.root_url
         else:
-            url = wsgiref.util.guess_scheme(environ) # 'http' or 'https'
+            url = wsgiref.util.guess_scheme(self.environ) # 'http' or 'https'
             url += '://' + self.environ['HTTP_HOST']
             if self.environ.has_key('REQUEST_URI'):
+                assert self.environ['REQUEST_URI'].startswith('/')
                 url += self.environ['REQUEST_URI']
                 path = self.environ.get('PATH_INFO', '')
                 
@@ -61,7 +66,7 @@ class RequestInfo(object):
             return True
         
         all_passed = False
-        for uri, conditions in parse_if_header(self.environ['HTTP_IF']):
+        for uri, conditions in davutils.parse_if_header(self.environ['HTTP_IF']):
             if uri is None:
                 rel_path = self.parse_request_path()
             else:
@@ -91,10 +96,10 @@ class RequestInfo(object):
         and that the path exists. Throws DAVError otherwise.
         The path can be either a file or a directory.
         '''
-        if not path_inside_directory(real_path, config.root_dir):
+        if not davutils.path_inside_directory(real_path, config.root_dir):
             raise DAVError('403 Permission Denied: Path is outside root_dir')
         
-        if compare_path(real_path, config.restrict_access):
+        if davutils.compare_path(real_path, config.restrict_access):
             raise DAVError('403 Permission Denied: restrict_access')
         
         if not os.path.exists(real_path):
@@ -114,13 +119,13 @@ class RequestInfo(object):
         If the resource is locked, verifies that the request included a valid
         If:-header with the lock token.
         '''
-        if not path_inside_directory(real_path, config.root_dir):
+        if not davutils.path_inside_directory(real_path, config.root_dir):
             raise DAVError('403 Permission Denied: Path is outside root_dir')
         
-        if compare_path(real_path, config.restrict_access):
+        if davutils.compare_path(real_path, config.restrict_access):
             raise DAVError('403 Permission Denied: restrict_access')
         
-        if compare_path(real_path, config.restrict_write):
+        if davutils.compare_path(real_path, config.restrict_write):
             raise DAVError('403 Permission Denied: restrict_write')
         
         if not os.path.exists(real_path):
@@ -136,14 +141,22 @@ class RequestInfo(object):
             if not os.access(real_path, os.W_OK):
                 raise DAVError('403 Permission Denied: File mode excludes write')
         
+        self.assert_locks(real_path)
+    
+    def assert_locks(self, real_path):
+        '''Verify that there are no locks on the resource, or that the necessary
+        locks have been provided by the client in the If: header.
+        '''
         if self.lockmanager:
-            applied_locks = self.lockmanager.get_locks(real_path, 0):
+            rel_path = davutils.get_relpath(real_path, config.root_dir)
+            applied_locks = self.lockmanager.get_locks(rel_path, 0)
                 
-            if parent_dir:
-                applied_locks += self.lockmanager.get_locks(parent_dir, 0):
+            if not os.path.exists(real_path):
+                parent_dir = os.path.dirname(rel_path)
+                applied_locks += self.lockmanager.get_locks(parent_dir, 0)
             
             for lock in applied_locks:
-                if lock.urn not in self.provided_tokens:
+                if lock.urn not in [token for path, token in self.provided_tokens]:
                     raise DAVError('423 Locked: ' + lock.path)
     
     def get_real_path(self, rel_path, mode):
@@ -171,7 +184,6 @@ class RequestInfo(object):
         '''Return the real filesystem path based on PATH_INFO from environment,
         and verify access rights.
         '''
-        
         return self.get_real_path(self.parse_request_path(), mode)
     
     def parse_simple_ref(self, simple_ref):
@@ -188,7 +200,7 @@ class RequestInfo(object):
         if not url.startswith(self.root_url):
             return None
         
-        rel_path = request_url[len(self.root_url):].strip('/')
+        rel_path = url[len(self.root_url):].strip('/')
         return unicode(urllib.unquote(rel_path), 'utf-8')
     
     def get_destination_path(self, mode):
@@ -203,7 +215,7 @@ class RequestInfo(object):
         
         return self.get_real_path(rel_path, mode)
     
-    def get_url(real_path):
+    def get_url(self, real_path):
         '''Get a fully specified URI for the file referenced
         by path. The URL is encoded with % escapes.
         '''
@@ -215,7 +227,7 @@ class RequestInfo(object):
         rel_path = urllib.quote(rel_path.encode('utf-8'))
         return urlparse.urljoin(self.root_url, rel_path)
     
-    def get_depth(self, default = 0):
+    def get_depth(self, default = '0'):
         '''Get the Depth: -http header value.
         Returns integer >= 0 or -1 for 'infinity'.
         '''
@@ -260,7 +272,7 @@ class RequestInfo(object):
         '''Decode the request body with ElementTree, returning an
         Element object or None.'''
         
-        body = environ['wsgi.input'].read()
+        body = self.wsgi_input.read()
         
         if not body.strip():
             return None
@@ -336,3 +348,49 @@ class RequestInfo(object):
                     instructions.append(('set', propelement.tag, None))
         
         return instructions
+
+if __name__ == '__main__':
+    print "Unit tests"
+    
+    import tempfile, shutil
+    config.root_dir = tempfile.mkdtemp(prefix = 'easydav-')
+    testfile = os.path.join(config.root_dir, 'testfile')
+    
+    open(testfile, 'w').write('foo')
+    
+    mgr = LockManager()
+    lock = mgr.create_lock('testfile', True, '', -1, 100)
+    
+    req = RequestInfo({
+        'HTTP_HOST': 'example.com',
+        'REQUEST_URI': '/webdav.cgi/testfile',
+        'PATH_INFO': '/testfile',
+        'HTTP_IF': '(<' + lock.urn + '>)'
+    })
+    
+    # When holding the lock
+    assert req.get_request_path('r')
+    assert req.get_request_path('w')
+    
+    mgr.release_lock(lock.path, lock.urn)
+    lock = mgr.create_lock('testfile', True, '', -1, 100)
+    
+    # When there is another lock
+    assert req.get_request_path('r')
+    try:
+        assert not req.get_request_path('w')
+    except DAVError:
+        pass
+    
+    mgr.release_lock(lock.path, lock.urn)
+    
+    # When there are no locks
+    assert req.get_request_path('r')
+    assert req.get_request_path('w')
+    
+    assert req.get_url(testfile) == 'http://example.com/webdav.cgi/testfile'
+    assert req.parse_simple_ref(req.get_url(testfile)) == 'testfile'
+    
+    shutil.rmtree(config.root_dir)
+    
+    print "Unit tests OK"
