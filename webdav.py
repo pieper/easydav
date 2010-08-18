@@ -126,7 +126,7 @@ def handle_propfind(reqinfo, start_response):
             if e.httpstatus.startswith('403'):
                 continue # Skip forbidden paths from listing
         
-        real_url = reqinfo.get_real_url(path)
+        real_url = reqinfo.get_url(path)
         propstats = read_properties(path, request_props)
         result_files.append((real_url, propstats))
 
@@ -158,7 +158,7 @@ def proppatch_verify_instruction(real_path, instruction):
 
 def handle_proppatch(reqinfo, start_response):
     real_path = reqinfo.get_request_path('w')
-    real_url = reqinfo.get_real_url(real_path)
+    real_url = reqinfo.get_url(real_path)
     
     propstats = {}
     instructions = reqinfo.parse_proppatch()
@@ -307,7 +307,7 @@ def handle_dirindex(reqinfo, start_response, message = None):
     Result is unimportant for DAV clients and only ment of WWW browsers.
     '''
     real_path = reqinfo.get_request_path('r')
-    real_url = reqinfo.get_real_url(real_path)
+    real_url = reqinfo.get_url(real_path)
     
     # No parent directory link in repository root
     has_parent = (reqinfo.root_url.rstrip('/') != real_url.rstrip('/'))
