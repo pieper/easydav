@@ -44,7 +44,7 @@ class RequestInfo(object):
             if self.environ.has_key('REQUEST_URI'):
                 assert self.environ['REQUEST_URI'].startswith('/')
                 url += self.environ['REQUEST_URI']
-                path = self.environ.get('PATH_INFO', '')
+                path = urllib.quote(self.environ.get('PATH_INFO', ''))
                 
                 # Remove the WebDAV relative path from the end of the url
                 assert url.endswith(path)
@@ -178,7 +178,8 @@ class RequestInfo(object):
     
     def parse_request_path(self):
         '''Return relative path based on PATH_INFO.'''
-        path = urllib.unquote(self.environ.get('PATH_INFO', ''))
+        # Unlike a URI path, the PATH_INFO is not URL-encoded (RFC3875)
+        path = self.environ.get('PATH_INFO', '')
         path = unicode(path, 'utf-8').strip('/')
         return path
     
@@ -354,17 +355,17 @@ if __name__ == '__main__':
     
     import tempfile, shutil
     config.root_dir = tempfile.mkdtemp(prefix = 'easydav-')
-    testfile = os.path.join(config.root_dir, 'testfile')
+    testfile = os.path.join(config.root_dir, 'testfile%')
     
     open(testfile, 'w').write('foo')
     
     mgr = LockManager()
-    lock = mgr.create_lock('testfile', True, '', -1, 100)
+    lock = mgr.create_lock('testfile%', True, '', -1, 100)
     
     req = RequestInfo({
         'HTTP_HOST': 'example.com',
-        'REQUEST_URI': '/webdav.cgi/testfile',
-        'PATH_INFO': '/testfile',
+        'REQUEST_URI': '/webdav.cgi/testfile%25',
+        'PATH_INFO': '/testfile%',
         'HTTP_IF': '(<' + lock.urn + '>)',
         'wsgi.input': None
     })
@@ -374,7 +375,7 @@ if __name__ == '__main__':
     assert req.get_request_path('w')
     
     mgr.release_lock(lock.path, lock.urn)
-    lock = mgr.create_lock('testfile', True, '', -1, 100)
+    lock = mgr.create_lock('testfile%', True, '', -1, 100)
     
     # When there is another lock
     assert req.get_request_path('r')
@@ -389,8 +390,8 @@ if __name__ == '__main__':
     assert req.get_request_path('r')
     assert req.get_request_path('w')
     
-    assert req.get_url(testfile) == 'http://example.com/webdav.cgi/testfile'
-    assert req.parse_simple_ref(req.get_url(testfile)) == 'testfile'
+    assert req.get_url(testfile) == 'http://example.com/webdav.cgi/testfile%25'
+    assert req.parse_simple_ref(req.get_url(testfile)) == 'testfile%'
     
     shutil.rmtree(config.root_dir)
     
