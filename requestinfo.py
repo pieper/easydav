@@ -221,11 +221,13 @@ class RequestInfo(object):
         '''
         rel_path = davutils.get_relpath(real_path, config.root_dir)
         
-        if os.path.isdir(real_path):
-            rel_path += '/' # Trailing slash for directories
-        
         rel_path = urllib.quote(rel_path.encode('utf-8'))
-        return urlparse.urljoin(self.root_url, rel_path)
+        url = urlparse.urljoin(self.root_url, rel_path)
+        
+        if os.path.isdir(real_path):
+            url += '/' # Trailing slash for directories
+        
+        return url
     
     def get_depth(self, default = '0'):
         '''Get the Depth: -http header value.
