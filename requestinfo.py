@@ -224,7 +224,7 @@ class RequestInfo(object):
         rel_path = urllib.quote(rel_path.encode('utf-8'))
         url = urlparse.urljoin(self.root_url, rel_path)
         
-        if os.path.isdir(real_path):
+        if os.path.isdir(real_path) and not url.endswith('/'):
             url += '/' # Trailing slash for directories
         
         return url
@@ -367,7 +367,8 @@ if __name__ == '__main__':
         'HTTP_HOST': 'example.com',
         'REQUEST_URI': '/webdav.cgi/testfile',
         'PATH_INFO': '/testfile',
-        'HTTP_IF': '(<' + lock.urn + '>)'
+        'HTTP_IF': '(<' + lock.urn + '>)',
+        'wsgi.input': None
     })
     
     # When holding the lock
