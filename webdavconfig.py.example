@@ -59,3 +59,19 @@ lock_max_time = 3600
 # Default setting should be ok unless you start seeing
 # 503 Service Unavailable errors.
 lock_wait = 5
+
+# Error logging
+
+# Log path, set to None to disable logging.
+# Path can be relative to webdav.py location or absolute.
+log_file = 'easydav.log'
+
+# Log level, higher means less verbose output.
+# Levels are defined in python module 'logging':
+# DEBUG = 10
+# INFO = 20
+# WARN = 30
+# ERROR = 40
+# FATAL = 50
+log_level = 30
+

@@ -22,6 +22,7 @@ __version__ = "0.2-dev"
 import cgi
 import kid
 import kid.parser
+import logging
 import os
 import os.path
 import shutil
@@ -33,6 +34,29 @@ import davutils
 from davutils import DAVError
 from requestinfo import RequestInfo
 import webdavconfig as config
+
+def initialize_logging():
+    formatter = logging.Formatter(
+    '%(asctime)s %(process)d %(levelname)s %(filename)s:%(lineno)d %(message)s')
+    
+    logging.getLogger().setLevel(config.log_level)
+    
+    mypath = os.path.dirname(os.path.abspath(__file__))
+    logfile = os.path.join(mypath, config.log_file)
+    filehandler = logging.FileHandler(filename = logfile)
+    filehandler.setFormatter(formatter)
+    logging.getLogger().addHandler(filehandler)
+    
+    if sys.stderr.isatty():
+        streamhandler = logging.StreamHandler(sys.stderr)
+        streamhandler.setFormatter(formatter)
+        logging.getLogger().addHandler(streamhandler)
+    
+    logging.log_init_done = True
+
+# Just initialize logs as soon as this module is imported.
+if not hasattr(logging, 'log_init_done'):
+    initialize_logging()
 
 multistatus = kid.load_template('multistatus.kid')
 dirindex = kid.load_template('dirindex.kid')
@@ -414,6 +438,10 @@ request_handlers = {
 
 def main(environ, start_response):
     try:
+        logging.info(environ.get('REMOTE_ADDR')
+            + ' ' + environ.get('REQUEST_METHOD')
+            + ' ' + environ.get('PATH_INFO'))
+        
         request_method = environ.get('REQUEST_METHOD', '').upper()
         
         if environ.get('HTTP_EXPECT') and __name__ == '__main__':
@@ -425,24 +453,27 @@ def main(environ, start_response):
         try:
             reqinfo = RequestInfo(environ)
             if request_handlers.has_key(request_method):
-                return request_handlers[request_method](reqinfo, start_response)  
+                return request_handlers[request_method](reqinfo, start_response)
+            else:
+                # Apache gives error "(104)Connection reset by peer:
+                # ap_content_length_filter: apr_bucket_read() failed" if the script
+                # does not read body.
+                environ['wsgi.input'].read()
+                raise DAVError('501 Not Implemented')
         except DAVError, e:
-            start_response(e.httpstatus, [('Content-Type', 'text/plain')])
-            return [e.httpstatus]
-        
-        # Apache gives error "(104)Connection reset by peer:
-        # ap_content_length_filter: apr_bucket_read() failed" if the script
-        # does not read body.
-        environ['wsgi.input'].read()
-        
-        start_response('501 Not implemented', [('Content-Type', 'text/plain')])
-        return ["501 Not implemented"]
+            if not e.body:
+                logging.warn(e.httpstatus)
+                start_response(e.httpstatus, [('Content-Type', 'text/plain')])
+                return [e.httpstatus]
+            else:
+                logging.warn(e.httpstatus + ' ' + e.body)
+                start_response(e.httpstatus, [('Content-Type', 'text/xml')])
+                return [e.body]
     except:
         import traceback
         
         exc = traceback.format_exc()
-        if sys.stderr.isatty():
-            sys.stderr.write(exc)
+        logging.error('Request handler crashed', exc_info = 1)
         
         try:
             start_response('500 Internal Server Error',
