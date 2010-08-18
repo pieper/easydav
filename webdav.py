@@ -27,9 +27,6 @@ import os.path
 import shutil
 import sys
 import tempfile
-import urlparse
-import urllib
-import wsgiref.util
 import zipfile
 
 import davutils
@@ -106,13 +103,13 @@ def read_properties(real_path, requested):
     
     for prop in requested:
         if not property_handlers.has_key(prop):
-            add_to_dict_list(propstats, '404 Not Found: Property', (prop, ''))
+            davutils.add_to_dict_list(propstats, '404 Not Found: Property', (prop, ''))
         else:
             try:
                 value = property_handlers[prop][0](real_path)
-                add_to_dict_list(propstats, '200 OK', (prop, value))
+                davutils.add_to_dict_list(propstats, '200 OK', (prop, value))
             except Exception, e:
-                add_to_dict_list(propstats, '500 ' + str(e), (prop, ''))
+                davutils.add_to_dict_list(propstats, '500 ' + str(e), (prop, ''))
     
     return propstats
 
@@ -122,7 +119,7 @@ def handle_propfind(reqinfo, start_response):
     real_path = reqinfo.get_request_path('r')
     
     result_files = []
-    for path in search_directory(real_path, depth):
+    for path in davutils.search_directory(real_path, depth):
         try:
             reqinfo.assert_read(path)
         except DAVError, e:
@@ -172,9 +169,9 @@ def handle_proppatch(reqinfo, start_response):
     for instruction in instructions:
         try:
             proppatch_verify_instruction(real_path, instruction)
-            add_to_dict_list(propstats, '200 OK', (instruction[1], ''))
+            davutils.add_to_dict_list(propstats, '200 OK', (instruction[1], ''))
         except DAVError, e:
-            add_to_dict_list(propstats, e, (instruction[1], ''))
+            davutils.add_to_dict_list(propstats, e, (instruction[1], ''))
     
     if propstats.keys() != ['200 OK']:
         if propstats.has_key('200 OK'):
@@ -211,7 +208,7 @@ def handle_put(reqinfo, start_response):
         os.unlink(real_path)
     
     outfile = open(real_path, 'wb')
-    write_blocks(outfile, read_blocks(reqinfo.wsgi_input))
+    davutils.write_blocks(outfile, davutils.read_blocks(reqinfo.wsgi_input))
     
     if new_file:
         start_response('201 Created', [])
@@ -224,22 +221,22 @@ def handle_get(reqinfo, start_response):
     real_path = reqinfo.get_request_path('r')
     
     if os.path.isdir(real_path):
-        return handle_dirindex(environ, start_response)
+        return handle_dirindex(reqinfo, start_response)
     
     etag = davutils.create_etag(real_path)
-    if not reqinfocheck_ifmatch(etag):
+    if not reqinfo.check_ifmatch(etag):
         raise DAVError('412 Precondition Failed')
     
     start_response('200 OK',
-        [('Content-Type', get_mimetype(real_path)),
+        [('Content-Type', davutils.get_mimetype(real_path)),
          ('E-Tag', etag),
          ('Content-Length', str(os.path.getsize(real_path)))])
     
-    if environ['REQUEST_METHOD'] == 'HEAD':
+    if reqinfo.environ['REQUEST_METHOD'] == 'HEAD':
         return ''
     
     infile = open(real_path, 'rb')
-    return read_blocks(infile)
+    return davutils.read_blocks(infile)
 
 def handle_mkcol(reqinfo, start_response):
     real_path = reqinfo.get_request_path('w')
@@ -286,7 +283,7 @@ def handle_copy_move(reqinfo, start_response):
         else:
             os.unlink(real_dest)
     
-    if environ['REQUEST_METHOD'] == 'COPY':
+    if reqinfo.environ['REQUEST_METHOD'] == 'COPY':
         if os.path.isdir(real_source):
             if depth == 0:
                 os.mkdir(real_dest)
@@ -329,7 +326,7 @@ def handle_dirindex(reqinfo, start_response, message = None):
     t = dirindex.Template(
         real_url = real_url, real_path = real_path,
         files = files, has_parent = has_parent,
-        message = message, root_url = root_url
+        message = message, root_url = reqinfo.root_url
     )
     return [t.serialize(output = 'xhtml')]
 
@@ -344,7 +341,7 @@ def handle_post(reqinfo, start_response):
     if fields.getfirst('file'):
         f = fields['file']
         dest_path = os.path.join(real_path, f.filename)
-        assert_write(dest_path)
+        reqinfo.assert_write(dest_path)
         
         if os.path.isdir(dest_path):
             raise DAVError('405 Method Not Allowed: Overwriting directory')
@@ -353,7 +350,7 @@ def handle_post(reqinfo, start_response):
             os.unlink(dest_path)
         
         outfile = open(dest_path, 'wb')
-        write_blocks(outfile, read_blocks(f.file))
+        davutils.write_blocks(outfile, davutils.read_blocks(f.file))
         
         message = "Successfully uploaded " + f.filename + "."
     
@@ -362,7 +359,7 @@ def handle_post(reqinfo, start_response):
         
         for f in filenames:
             rm_path = os.path.join(real_path, f)
-            assert_write(rm_path)
+            reqinfo.assert_write(rm_path)
             
             if os.path.isdir(rm_path):
                 shutil.rmtree(rm_path)
@@ -378,15 +375,16 @@ def handle_post(reqinfo, start_response):
         
         def check_read(path):
             try:
-                assert_read(path)
+                reqinfo.assert_read(path)
                 return True
             except DAVError:
                 return False
         
         for f in filenames:
             file_path = os.path.join(real_path, f)
-            assert_read(file_path)
-            add_to_zip_recursively(zipobj, file_path, config.root_dir, check_read)
+            reqinfo.assert_read(file_path)
+            davutils.add_to_zip_recursively(zipobj, file_path,
+                config.root_dir, check_read)
         
         zipobj.close()
         
@@ -396,9 +394,9 @@ def handle_post(reqinfo, start_response):
         ])
         
         datafile.seek(0)
-        return read_blocks(datafile)
+        return davutils.read_blocks(datafile)
     
-    return handle_dirindex(environ, start_response, message)
+    return handle_dirindex(reqinfo, start_response, message)
 
 request_handlers = {
     'OPTIONS': handle_options,
