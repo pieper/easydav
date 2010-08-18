@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+import logging
 import os.path
 import urlparse
 import urllib
@@ -17,6 +18,7 @@ class RequestInfo(object):
     that are relevant for WebDAV.
     '''
     def __init__(self, environ):
+        logging.debug(str(environ))
         self.environ = environ
         self.wsgi_input = environ['wsgi.input']
         self._lockmanager = None
@@ -260,10 +262,6 @@ class RequestInfo(object):
         
         if if_match and if_none_match:
             raise DAVError('400 Bad Request: If-Match conflicts with If-None-Match')
-        
-        if not os.path.exists(real_path):
-            # If-match header fails if there is no current entity.
-            return not if_match
         
         if if_match:
             return davutils.compare_etags(etag, if_match)

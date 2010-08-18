@@ -37,7 +37,7 @@ import webdavconfig as config
 
 def initialize_logging():
     formatter = logging.Formatter(
-    '%(asctime)s %(process)d %(levelname)s %(filename)s:%(lineno)d %(message)s')
+    '%(asctime)s %(process)d %(levelname)s %(message)s')
     
     logging.getLogger().setLevel(config.log_level)
     
