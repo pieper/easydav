@@ -18,8 +18,11 @@ class RequestInfo(object):
     that are relevant for WebDAV.
     '''
     def __init__(self, environ):
-        logging.debug(str(environ))
         self.environ = environ
+        
+        if logging.getLogger().level >= logging.DEBUG:
+            self.log_environ()
+        
         self.wsgi_input = environ['wsgi.input']
         self._lockmanager = None
         self.root_url = self.get_root_url()
@@ -32,6 +35,18 @@ class RequestInfo(object):
         return self._lockmanager
     
     lockmanager = property(get_lockmanager)
+    
+    def log_environ(self):
+        headers = ['HTTP_HOST', 'REQUEST_URI', 'PATH_INFO',
+                   'HTTP_DESTINATION', 'HTTP_DEPTH', 'CONTENT_LENGTH',
+                   'TRANSFER_ENCODING', 'HTTP_IF', 'HTTP_IF_MATCH',
+                   'HTTP_IF_NONE_MATCH', 'HTTP_LOCK_TOKEN',
+                   'HTTP_X_LITMUS']
+        result = ""
+        for header in headers:
+            if self.environ.has_key(header):
+                result += header + ': ' + repr(self.environ[header]) + '\n'
+        logging.debug('RequestInfo:\n' + result)
     
     def get_root_url(self):
         '''Get the url where the webdav resource is located.
@@ -126,7 +141,7 @@ class RequestInfo(object):
         if not os.access(real_path, os.R_OK):
             raise DAVError('403 Permission Denied: File mode excludes read')
     
-    def assert_write(self, real_path):
+    def assert_write(self, real_path, check_locks = True):
         '''Verify that a remote web dav user is allowed to write this path.
         Throws DAVError otherwise.
         
@@ -159,7 +174,8 @@ class RequestInfo(object):
             if not os.access(real_path, os.W_OK):
                 raise DAVError('403 Permission Denied: File mode excludes write')
         
-        self.assert_locks(real_path)
+        if check_locks:
+            self.assert_locks(real_path)
     
     def assert_locks(self, real_path):
         '''Verify that there are no locks on the resource, or that the necessary
@@ -199,6 +215,10 @@ class RequestInfo(object):
             self.assert_write(real_path)
         elif mode == 'r':
             self.assert_read(real_path)
+        elif mode == 'wl':
+            # Used when locking a resource with a shared lock,
+            # does not check for existing locks.
+            self.assert_write(real_path, False)
         else:
             raise ValueError('Invalid access mode, must be r or w.')
         
@@ -272,6 +292,15 @@ class RequestInfo(object):
             return int(depth)
         except ValueError:
             raise DAVError('400 Bad Request: Invalid Depth header')
+    
+    def get_timeout(self):
+        parts = self.environ.get('HTTP_TIMEOUT', '').split(',')
+        for part in parts:
+            try:
+                return davutils.parse_timeout(part)
+            except ValueError:
+                pass
+        return None
     
     def get_overwrite(self):
         '''Get the HTTP Overwrite header, returning True if overwrite is allowed.'''
@@ -377,6 +406,38 @@ class RequestInfo(object):
                     instructions.append(('set', propelement.tag, None))
         
         return instructions
+
+    def parse_lock_body(self):
+        '''Parse the XML request body for a LOCK request.
+        
+        Returns a tuple:
+        (shared, owner)
+        '''
+        
+        body = self.get_xml_body()
+        
+        if body is None or body.tag != '{DAV:}lockinfo':
+            raise DAVError('400 Bad Request: Root element is not lockinfo')
+        
+        e_scope = body.find('{DAV:}lockscope')
+        if e_scope.find('{DAV:}exclusive') is not None:
+            shared = False
+        elif e_scope.find('{DAV:}shared') is not None:
+            shared = True
+        else:
+            raise DAVError('400 Bad Request: Unknown lockscope')
+        
+        e_type = body.find('{DAV:}locktype')
+        if e_type.find('{DAV:}write') is None:
+            raise DAVError('400 Bad Request: Unknown locktype')
+        
+        owner = body.find('{DAV:}owner')
+        if owner is not None:
+            owner = ET.tostring(owner)
+        else:
+            owner = '<D:owner xmlns:D="DAV:" />'
+        
+        return shared, owner 
 
 if __name__ == '__main__':
     print "Unit tests"

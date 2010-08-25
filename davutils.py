@@ -19,8 +19,8 @@ class DAVError(Exception):
     '''
     def __init__(self, httpstatus, body = None):
         Exception.__init__(self, httpstatus)
-        self.httpstatus = httpstatus
-        self.body = body
+        self.httpstatus = str(httpstatus)
+        self.body = body and str(body)
     
     def __str__(self):
         return self.httpstatus
@@ -323,6 +323,18 @@ def parse_if_header(if_header):
         results.append((l_tag, parse_if_list(l_contents)))
     return results
 
+def parse_timeout(value):
+    '''Parses a TimeType construction, returning timeout in seconds or
+    None for infinity. Invalid strings return ValueError.
+    '''
+    value = value.strip()
+    if value == 'Infinite':
+        return None
+    elif value.startswith('Second-'):
+        return int(value[len('Second-'):])
+    else:
+        raise ValueError('Unknown timeout type')
+
 if __name__ == '__main__':
     print "Unit tests"
     
@@ -379,6 +391,9 @@ if __name__ == '__main__':
     
     assert (parse_if_header('<foo>(Not["Etag"])')
         == [('foo', [('etag', True, '"Etag"')])])
-    
+
+    assert parse_timeout('Second-1234') == 1234
+    assert parse_timeout('Infinite') is None
+
     print "Unit tests OK"
     

@@ -10,19 +10,24 @@ import sqlite3
 from uuid import uuid4
 import datetime
 from davutils import DAVError
+import xml.etree.ElementTree as ET
 
 class Lock:
     '''Convenience wrapper for database rows returned from LockManager.'''
     def __init__(self, row):
-        self.urn = row[0]
-        self.path = row[1]
-        self.shared = row[2]
-        self.owner = row[3]
-        self.infinite_depth = row[4]
-        self.timeout = row[5]
+        self.urn = str(row["urn"])
+        self.path = row["path"]
+        self.shared = row["shared"]
+        self.owner = row["owner"]
+        self.infinite_depth = row["infinite_depth"]
+        self.valid_until = row["valid_until"]
     
     def __eq__(self, other):
         return isinstance(other, Lock) and other.urn == self.urn
+
+    def seconds_until_timeout(self):
+        delta = self.valid_until - datetime.datetime.utcnow()
+        return delta.seconds + delta.days * 86400
 
 class LockManager:
     def __init__(self):
@@ -32,7 +37,8 @@ class LockManager:
         
         self.db_conn = sqlite3.connect(dbpath,
             isolation_level = None,
-            timeout = config.lock_wait)
+            timeout = config.lock_wait,
+            detect_types=sqlite3.PARSE_DECLTYPES)
         self.db_conn.row_factory = sqlite3.Row
         self.db_cursor = self.db_conn.cursor()
         
@@ -136,7 +142,7 @@ class LockManager:
         are as follows:
         rel_path: full path to the resource in local file system
         shared: True for shared lock, False for exclusive lock
-        owner: client-provided XML string describing the owner of the lock
+        owner: client-provided <DAV:owner> xml string describing the owner of the lock
         depth: -1 for infinite, 0 otherwise
         timeout: Client-requested lock expiration time in seconds from now.
                  Configuration may limit actual timeout.
@@ -147,7 +153,7 @@ class LockManager:
         assert not rel_path.startswith('/')
         
         urn = uuid4().urn
-        timeout = min(timeout, config.lock_max_time)
+        timeout = min(timeout, config.lock_max_time) or config.lock_max_time
         valid_until = datetime.datetime.utcnow()
         valid_until += datetime.timedelta(seconds = timeout)
         
@@ -187,8 +193,8 @@ class LockManager:
             raise
 
     def refresh_lock(self, rel_path, urn, timeout):
-        '''Refresh the given lock.'''
-        timeout = min(timeout, config.lock_max_time)
+        '''Refresh the given lock and return new Lock object.'''
+        timeout = min(timeout, config.lock_max_time) or config.lock_max_time
         valid_until = datetime.datetime.utcnow()
         valid_until += datetime.timedelta(seconds = timeout)
         
@@ -204,7 +210,9 @@ class LockManager:
         except:
             self._sql_query('ROLLBACK')
             raise
-
+        
+        self._sql_query('SELECT * FROM locks WHERE urn=?', (urn, ))
+        return Lock(self.db_cursor.fetchone())
 
 if __name__ != '__main__':
     import webdavconfig as config

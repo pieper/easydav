@@ -41,11 +41,12 @@ def initialize_logging():
     
     logging.getLogger().setLevel(config.log_level)
     
-    mypath = os.path.dirname(os.path.abspath(__file__))
-    logfile = os.path.join(mypath, config.log_file)
-    filehandler = logging.FileHandler(filename = logfile)
-    filehandler.setFormatter(formatter)
-    logging.getLogger().addHandler(filehandler)
+    if config.log_file:
+        mypath = os.path.dirname(os.path.abspath(__file__))
+        logfile = os.path.join(mypath, config.log_file)
+        filehandler = logging.FileHandler(filename = logfile)
+        filehandler.setFormatter(formatter)
+        logging.getLogger().addHandler(filehandler)
     
     if sys.stderr.isatty():
         streamhandler = logging.StreamHandler(sys.stderr)
@@ -60,6 +61,7 @@ if not hasattr(logging, 'log_init_done'):
 
 multistatus = kid.load_template('multistatus.kid')
 dirindex = kid.load_template('dirindex.kid')
+activelock = kid.load_template('activelock.kid')
 
 def handle_options(reqinfo, start_response):
     '''Handle an OPTIONS request.'''
@@ -182,11 +184,11 @@ def proppatch_verify_instruction(real_path, instruction):
         raise DAVError('403 Forbidden: Properties cannot be removed')
 
 def handle_proppatch(reqinfo, start_response):
+    instructions = reqinfo.parse_proppatch()
     real_path = reqinfo.get_request_path('w')
     real_url = reqinfo.get_url(real_path)
     
     propstats = {}
-    instructions = reqinfo.parse_proppatch()
     
     # Servers MUST process PROPPATCH instructions in
     # document order. Instructions MUST either all be
@@ -257,7 +259,8 @@ def handle_get(reqinfo, start_response):
     start_response('200 OK',
         [('Content-Type', davutils.get_mimetype(real_path)),
          ('E-Tag', etag),
-         ('Content-Length', str(os.path.getsize(real_path)))])
+         ('Content-Length', str(os.path.getsize(real_path))),
+         ('Last-Modified', davutils.get_rfcformat(os.path.getmtime(real_path)))])
     
     if reqinfo.environ['REQUEST_METHOD'] == 'HEAD':
         return ''
@@ -320,6 +323,7 @@ def handle_copy_move(reqinfo, start_response):
         else:
             shutil.copy2(real_source, real_dest)
     else:
+        reqinfo.assert_write(real_source)
         shutil.move(real_source, real_dest)
     
     if new_resource:
@@ -328,6 +332,43 @@ def handle_copy_move(reqinfo, start_response):
         start_response('204 No Content', [])
     return ""    
 
+def handle_lock(reqinfo, start_response):
+    timeout = reqinfo.get_timeout()
+    depth = reqinfo.get_depth()
+    real_path = reqinfo.get_request_path('wl')
+    rel_path = davutils.get_relpath(real_path, config.root_dir)
+    
+    if not reqinfo.length:
+        # Handle lock refresh
+        lock = reqinfo.lockmanager.refresh_lock(rel_path,
+            reqinfo.provided_tokens[0][1], timeout)
+    else:
+        # Create new lock
+        shared, owner = reqinfo.parse_lock_body()
+        lock = reqinfo.lockmanager.create_lock(rel_path,
+            shared, owner, depth, timeout)
+    
+    if not os.path.exists(real_path):
+        status = "201 Created"
+        open(real_path, 'w').write('')
+    else:
+        status = "200 OK"
+    
+    start_response(status,
+        [('Content-Type', 'text/xml; charset=utf-8'),
+         ('Lock-Token', lock.urn)])
+    t = activelock.Template(lock = lock, reqinfo = reqinfo,
+        part_only = False)
+    return [t.serialize(output = 'xml')]
+
+def handle_unlock(reqinfo, start_response):
+    real_path = reqinfo.get_request_path('r')
+    rel_path = davutils.get_relpath(real_path, config.root_dir)
+    urn = reqinfo.environ.get('HTTP_LOCK_TOKEN').strip(' <>')
+    
+    reqinfo.lockmanager.release_lock(rel_path, urn)
+    start_response('204 No Content', [])
+    return ""
 
 def handle_dirindex(reqinfo, start_response, message = None):
     '''Handle a GET request for a directory.
@@ -436,6 +477,8 @@ request_handlers = {
     'DELETE': handle_delete,
     'COPY': handle_copy_move,
     'MOVE': handle_copy_move,
+    'LOCK': handle_lock,
+    'UNLOCK': handle_unlock,
     'POST': handle_post,
 }
 
