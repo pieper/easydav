@@ -23,6 +23,7 @@ class RequestInfo(object):
         self.wsgi_input = environ['wsgi.input']
         self._lockmanager = None
         self.root_url = self.get_root_url()
+        self.length = self.get_length()
         self.check_if_header()
     
     def get_lockmanager(self):
@@ -57,6 +58,21 @@ class RequestInfo(object):
             url += '/'
         
         return url
+    
+    def get_length(self):
+        '''Get length of request body or -1 if the client uses chunked encoding.
+        -1 means to read until EOF, which works well under FCGI and CGI, but
+        not under wsgiref.simple_server.
+        '''
+        if self.environ.get('TRANSFER_ENCODING'):
+            return -1
+        elif self.environ.get('CONTENT_LENGTH'):
+            try:
+                return int(self.environ['CONTENT_LENGTH'])
+            except ValueError:
+                raise DAVError('400 Bad Request: Invalid Content-Length header')
+        else:
+            return 0
     
     def check_if_header(self):
         '''Check the If: header to determine whether the request should be
@@ -160,6 +176,18 @@ class RequestInfo(object):
             for lock in applied_locks:
                 if lock.urn not in [token for path, token in self.provided_tokens]:
                     raise DAVError('423 Locked: ' + lock.path)
+    
+    def assert_nobody(self):
+        '''Verify that the request has no body or raise DAVError otherwise.
+        From RFC4918: In cases where a request body is present but would be
+        ignored by a server, the server MUST reject the request with
+        415 (Unsupported Media Type).
+        '''
+        if self.length:
+            # Read the body because sometimes Apache gives errors if the body
+            # is left unread.
+            self.wsgi_input.read(self.length)
+            raise DAVError('415 Unsupported Media Type')
     
     def get_real_path(self, rel_path, mode):
         '''Get real filesystem path based on a path relative to repository root.
@@ -273,7 +301,7 @@ class RequestInfo(object):
         '''Decode the request body with ElementTree, returning an
         Element object or None.'''
         
-        body = self.wsgi_input.read()
+        body = self.wsgi_input.read(self.length)
         
         if not body.strip():
             return None
@@ -327,7 +355,7 @@ class RequestInfo(object):
         
         Propelement is a ElementTree element, with tag name same as propname.
         '''
-        body = get_xml_body(environ)
+        body = self.get_xml_body()
         
         if body.tag != '{DAV:}propertyupdate':
             raise DAVError('400 Bad Request: Root element is not propertyupdate')

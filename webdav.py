@@ -63,6 +63,7 @@ dirindex = kid.load_template('dirindex.kid')
 
 def handle_options(reqinfo, start_response):
     '''Handle an OPTIONS request.'''
+    reqinfo.assert_nobody()
     start_response('200 OK', [('DAV', '1,2')])
     return ""
 
@@ -232,7 +233,8 @@ def handle_put(reqinfo, start_response):
         os.unlink(real_path)
     
     outfile = open(real_path, 'wb')
-    davutils.write_blocks(outfile, davutils.read_blocks(reqinfo.wsgi_input))
+    block_generator = davutils.read_blocks(reqinfo.wsgi_input, reqinfo.length)
+    davutils.write_blocks(outfile, block_generator)
     
     if new_file:
         start_response('201 Created', [])
@@ -242,6 +244,7 @@ def handle_put(reqinfo, start_response):
     return ""
 
 def handle_get(reqinfo, start_response):
+    reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('r')
     
     if os.path.isdir(real_path):
@@ -263,20 +266,19 @@ def handle_get(reqinfo, start_response):
     return davutils.read_blocks(infile)
 
 def handle_mkcol(reqinfo, start_response):
+    reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('w')
     
     if os.path.exists(real_path):
         raise DAVError('405 Method Not Allowed: Collection already exists')
 
-    if reqinfo.wsgi_input.read():
-        raise DAVError('415 Unsupported Media Type')
-    
     os.mkdir(real_path)
     
     start_response('201 Created', [])
     return ""
 
 def handle_delete(reqinfo, start_response):
+    reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('w')
     
     # Locks on parent directory prohibit deletion of members.
@@ -294,6 +296,7 @@ def handle_delete(reqinfo, start_response):
     return ""
 
 def handle_copy_move(reqinfo, start_response):
+    reqinfo.assert_nobody()
     depth = reqinfo.get_depth()
     real_source = reqinfo.get_request_path('r')
     real_dest = reqinfo.get_destination_path('w')
@@ -328,7 +331,7 @@ def handle_copy_move(reqinfo, start_response):
 
 def handle_dirindex(reqinfo, start_response, message = None):
     '''Handle a GET request for a directory.
-    Result is unimportant for DAV clients and only ment of WWW browsers.
+    Result is unimportant for DAV clients and only ment for WWW browsers.
     '''
     real_path = reqinfo.get_request_path('r')
     real_url = reqinfo.get_url(real_path)
@@ -458,7 +461,7 @@ def main(environ, start_response):
                 # Apache gives error "(104)Connection reset by peer:
                 # ap_content_length_filter: apr_bucket_read() failed" if the script
                 # does not read body.
-                environ['wsgi.input'].read()
+                reqinfo.wsgi_input.read(reqinfo.length)
                 raise DAVError('501 Not Implemented')
         except DAVError, e:
             if not e.body:
