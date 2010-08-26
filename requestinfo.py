@@ -177,13 +177,13 @@ class RequestInfo(object):
         if check_locks:
             self.assert_locks(real_path)
     
-    def assert_locks(self, real_path):
+    def assert_locks(self, real_path, recursive = False):
         '''Verify that there are no locks on the resource, or that the necessary
         locks have been provided by the client in the If: header.
         '''
         if self.lockmanager:
             rel_path = davutils.get_relpath(real_path, config.root_dir)
-            applied_locks = self.lockmanager.get_locks(rel_path, 0)
+            applied_locks = self.lockmanager.get_locks(rel_path, recursive)
                 
             if not os.path.exists(real_path):
                 parent_dir = os.path.dirname(rel_path)
@@ -219,6 +219,10 @@ class RequestInfo(object):
             # Used when locking a resource with a shared lock,
             # does not check for existing locks.
             self.assert_write(real_path, False)
+        elif mode == 'wd':
+            # Checks lock status on all files inside the directory.
+            self.assert_write(real_path)
+            self.assert_locks(real_path, True)
         else:
             raise ValueError('Invalid access mode, must be r or w.')
         

@@ -82,15 +82,14 @@ class LockManager:
             else:
                 raise DAVError('500 Internal Server Error: Lock DB: ' + e.message)
 
-    def get_locks(self, rel_path, depth):
+    def get_locks(self, rel_path, recursive):
         '''Returns all locks that apply to the resource defined by rel_path.
         This includes:
          - Locks on the resource itself
          - Locks on any parent collections
-         - If depth == -1, locks on any resources inside the collection
+         - If recursive is True, locks on any resources inside the collection
         Result is a list of Lock objects.
         '''
-        assert depth in [0, -1]
         assert not rel_path.startswith('/')
         path_exprs = ['path = ?']
         path_args = [rel_path]
@@ -104,7 +103,7 @@ class LockManager:
             path_args.append(partial_path)
 
         # Check for any resources inside this collection
-        if depth == -1:
+        if recursive:
             if rel_path != '':
                 prefix = rel_path + '/'
             else:
@@ -160,7 +159,7 @@ class LockManager:
         self._sql_query('BEGIN IMMEDIATE TRANSACTION')
         
         try:
-            for lock in self.get_locks(rel_path, depth):
+            for lock in self.get_locks(rel_path, depth == -1):
                 if not lock.shared or not shared:
                     # Allow only one exclusive lock
                     raise DAVError('423 Locked')

@@ -258,7 +258,7 @@ def handle_get(reqinfo, start_response):
     
     start_response('200 OK',
         [('Content-Type', davutils.get_mimetype(real_path)),
-         ('E-Tag', etag),
+         ('Etag', etag),
          ('Content-Length', str(os.path.getsize(real_path))),
          ('Last-Modified', davutils.get_rfcformat(os.path.getmtime(real_path)))])
     
@@ -280,9 +280,18 @@ def handle_mkcol(reqinfo, start_response):
     start_response('201 Created', [])
     return ""
 
+def purge_locks(lockmanager, real_path):
+    '''Remove all locks when a resource is moved or removed.'''
+    rel_path = davutils.get_relpath(real_path, config.root_dir)
+    
+    for lock in lockmanager.get_locks(rel_path, True):
+        if not davutils.path_inside_directory(lock.path, rel_path):
+            continue
+        lockmanager.release_lock(lock.path, lock.urn)
+
 def handle_delete(reqinfo, start_response):
     reqinfo.assert_nobody()
-    real_path = reqinfo.get_request_path('w')
+    real_path = reqinfo.get_request_path('wd')
     
     # Locks on parent directory prohibit deletion of members.
     reqinfo.assert_locks(os.path.dirname(real_path))
@@ -294,6 +303,8 @@ def handle_delete(reqinfo, start_response):
         shutil.rmtree(real_path)
     else:
         os.unlink(real_path)
+    
+    purge_locks(reqinfo.lockmanager, real_path)
     
     start_response('204 No Content', [])
     return ""
@@ -323,8 +334,9 @@ def handle_copy_move(reqinfo, start_response):
         else:
             shutil.copy2(real_source, real_dest)
     else:
-        reqinfo.assert_write(real_source)
+        real_source = reqinfo.get_request_path('wd')
         shutil.move(real_source, real_dest)
+        purge_locks(reqinfo.lockmanager, real_source)
     
     if new_resource:
         start_response('201 Created', [])
