@@ -15,6 +15,7 @@ import xml.etree.ElementTree as ET
 class Lock:
     '''Convenience wrapper for database rows returned from LockManager.'''
     def __init__(self, row):
+        self.row = row
         self.urn = str(row["urn"])
         self.path = row["path"]
         self.shared = row["shared"]
@@ -24,6 +25,9 @@ class Lock:
     
     def __eq__(self, other):
         return isinstance(other, Lock) and other.urn == self.urn
+
+    def __repr__(self):
+        return 'Lock(' + ','.join(map(repr, self.row)) + ')'
 
     def seconds_until_timeout(self):
         delta = self.valid_until - datetime.datetime.utcnow()
@@ -109,7 +113,7 @@ class LockManager:
             else:
                 prefix = ''
             
-            path_exprs.append('SUBSTR(path,0,?) = ?')
+            path_exprs.append('SUBSTR(path,1,?) = ?')
             path_args.append(len(prefix))
             path_args.append(prefix)
 
@@ -226,6 +230,8 @@ else:
         lock_max_time = 3600
         lock_wait = 5
     
+    print 'Tempfile is', config.lock_db
+    
     # Test basic access
     mgr1 = LockManager()
     
@@ -257,6 +263,9 @@ else:
         assert not mgr1.create_lock('', False, '', -1, 100)
     except DAVError:
         pass
+    
+    lock4 = mgr1.create_lock('testdir/testfile3', False, '', -1, 100)
+    assert mgr1.get_locks('testdir', True) == [lock4]
     
     mgr1.release_lock(lock1.path, lock1.urn)
     mgr1.release_lock(lock2.path, lock2.urn)

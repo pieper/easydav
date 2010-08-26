@@ -184,8 +184,11 @@ class RequestInfo(object):
         if self.lockmanager:
             rel_path = davutils.get_relpath(real_path, config.root_dir)
             applied_locks = self.lockmanager.get_locks(rel_path, recursive)
-                
+            
+            logging.debug('Locks on ' + rel_path + ': ' + repr(applied_locks))
+            
             if not os.path.exists(real_path):
+                # Creating a new file, check parent directory for lock.
                 parent_dir = os.path.dirname(rel_path)
                 applied_locks += self.lockmanager.get_locks(parent_dir, 0)
             
