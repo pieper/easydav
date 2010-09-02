@@ -58,14 +58,14 @@ class RequestInfo(object):
             url = wsgiref.util.guess_scheme(self.environ) # 'http' or 'https'
             url += '://' + self.environ['HTTP_HOST']
             if self.environ.has_key('REQUEST_URI'):
-                assert self.environ['REQUEST_URI'].startswith('/')
-                url += self.environ['REQUEST_URI']
-                path = urllib.quote(self.environ.get('PATH_INFO', ''))
+                full_path = urllib.unquote(self.environ['REQUEST_URI'])
+                assert full_path.startswith('/')
+                rel_path = self.environ.get('PATH_INFO', '')
+                assert full_path.endswith(rel_path)
                 
-                # Remove the WebDAV relative path from the end of the url
-                assert url.endswith(path)
-                url = url[:-len(path)]
-                                
+                full_path = full_path[:-len(rel_path)]
+                url += urllib.quote(full_path)
+        
         # Some programs require the root directory url to include
         # a trailing slash, because otherwise Apache performs a
         # 302 Found redirect to the version with a slash.
