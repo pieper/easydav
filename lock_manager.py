@@ -15,7 +15,6 @@ import xml.etree.ElementTree as ET
 class Lock:
     '''Convenience wrapper for database rows returned from LockManager.'''
     def __init__(self, row):
-        self.row = row
         self.urn = str(row["urn"])
         self.path = row["path"]
         self.shared = row["shared"]
@@ -27,7 +26,7 @@ class Lock:
         return isinstance(other, Lock) and other.urn == self.urn
 
     def __repr__(self):
-        return 'Lock(' + ','.join(map(repr, self.row)) + ')'
+        return '<Lock ' + self.urn + ' on "' + self.path + '">'
 
     def seconds_until_timeout(self):
         delta = self.valid_until - datetime.datetime.utcnow()
