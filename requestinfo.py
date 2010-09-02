@@ -20,7 +20,7 @@ class RequestInfo(object):
     def __init__(self, environ):
         self.environ = environ
         
-        if logging.getLogger().level >= logging.DEBUG:
+        if logging.getLogger().level <= logging.DEBUG:
             self.log_environ()
         
         self.wsgi_input = environ['wsgi.input']
