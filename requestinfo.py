@@ -2,6 +2,7 @@
 
 import logging
 import os.path
+import unicodedata
 import urlparse
 import urllib
 import wsgiref.util
@@ -213,6 +214,9 @@ class RequestInfo(object):
         Also verifies proper access permissions or raises DAVError.
         '''
         real_path = os.path.join(config.root_dir, rel_path)
+        
+        if config.unicode_normalize is not None:
+            real_path = unicodedata.normalize(config.unicode_normalize, real_path)
         
         if mode == 'w':
             self.assert_write(real_path)

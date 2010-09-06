@@ -45,6 +45,20 @@ restrict_write = [
     '*.pl.*',
 ]
 
+# File name normalization
+# Unicode can express same letters in multiple forms, such as composed and
+# decomposed forms. Therefore it is possible to have two filenames that
+# look exactly the same but compare inequal.
+#
+# Problem is further complicated because Mac OS X normalizes filenames to
+# the decomposed form, whereas Windows and Linux use the composed form by
+# default. This setting uses Python's unicodedata.normalize() to normalize
+# filenames passed by clients.
+#
+# Suggested setting is 'NFC' to normalize to the composed form. You can also
+# use None to disable normalization.
+unicode_normalize = 'NFC'
+
 # Lock configuration
 
 # Lock database file, set to None to disable lock support.
