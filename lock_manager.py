@@ -16,7 +16,7 @@ class Lock:
     '''Convenience wrapper for database rows returned from LockManager.'''
     def __init__(self, row):
         self.urn = str(row["urn"])
-        self.path = row["path"]
+        self.path = unicode(row["path"])
         self.shared = row["shared"]
         self.owner = row["owner"]
         self.infinite_depth = row["infinite_depth"]
@@ -26,7 +26,7 @@ class Lock:
         return isinstance(other, Lock) and other.urn == self.urn
 
     def __repr__(self):
-        return '<Lock ' + self.urn + ' on "' + self.path + '">'
+        return '<Lock ' + self.urn + ' on ' + repr(self.path) + '>'
 
     def seconds_until_timeout(self):
         delta = self.valid_until - datetime.datetime.utcnow()

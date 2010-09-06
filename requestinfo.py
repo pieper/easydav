@@ -185,7 +185,7 @@ class RequestInfo(object):
             rel_path = davutils.get_relpath(real_path, config.root_dir)
             applied_locks = self.lockmanager.get_locks(rel_path, recursive)
             
-            logging.debug('Locks on ' + rel_path + ': ' + repr(applied_locks))
+            logging.debug('Locks on ' + repr(rel_path) + ': ' + repr(applied_locks))
             
             if not os.path.exists(real_path):
                 # Creating a new file, check parent directory for lock.
@@ -194,7 +194,7 @@ class RequestInfo(object):
             
             for lock in applied_locks:
                 if lock.urn not in [token for path, token in self.provided_tokens]:
-                    raise DAVError('423 Locked: ' + lock.path)
+                    raise DAVError('423 Locked: ' + repr(lock.path))
     
     def assert_nobody(self):
         '''Verify that the request has no body or raise DAVError otherwise.
@@ -451,17 +451,17 @@ if __name__ == '__main__':
     
     import tempfile, shutil
     config.root_dir = tempfile.mkdtemp(prefix = 'easydav-')
-    testfile = os.path.join(config.root_dir, 'testfile%')
+    testfile = os.path.join(config.root_dir, u'testfile%ä')
     
     open(testfile, 'w').write('foo')
     
     mgr = LockManager()
-    lock = mgr.create_lock('testfile%', True, '', -1, 100)
+    lock = mgr.create_lock(u'testfile%ä', True, '', -1, 100)
     
     req = RequestInfo({
         'HTTP_HOST': 'example.com',
-        'REQUEST_URI': '/webdav.cgi/testfile%25',
-        'PATH_INFO': '/testfile%',
+        'REQUEST_URI': '/webdav.cgi/testfile%25%C3%A4',
+        'PATH_INFO': '/testfile%\xc3\xa4',
         'HTTP_IF': '(<' + lock.urn + '>)',
         'wsgi.input': None
     })
@@ -471,7 +471,7 @@ if __name__ == '__main__':
     assert req.get_request_path('w')
     
     mgr.release_lock(lock.path, lock.urn)
-    lock = mgr.create_lock('testfile%', True, '', -1, 100)
+    lock = mgr.create_lock(u'testfile%ä', True, '', -1, 100)
     
     # When there is another lock
     assert req.get_request_path('r')
@@ -486,8 +486,8 @@ if __name__ == '__main__':
     assert req.get_request_path('r')
     assert req.get_request_path('w')
     
-    assert req.get_url(testfile) == 'http://example.com/webdav.cgi/testfile%25'
-    assert req.parse_simple_ref(req.get_url(testfile)) == 'testfile%'
+    assert req.get_url(testfile) == 'http://example.com/webdav.cgi/testfile%25%C3%A4'
+    assert req.parse_simple_ref(req.get_url(testfile)) == u'testfile%ä'
     
     shutil.rmtree(config.root_dir)
     
