@@ -233,7 +233,7 @@ def handle_put(reqinfo, start_response):
         # This has the additional benefit that old GET operations can
         # continue even if the file is replaced.
         os.unlink(real_path)
-    
+
     outfile = open(real_path, 'wb')
     block_generator = davutils.read_blocks(reqinfo.wsgi_input, reqinfo.length)
     davutils.write_blocks(outfile, block_generator)
@@ -404,9 +404,8 @@ def handle_dirindex(reqinfo, start_response, message = None):
     
     start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8')])
     t = dirindex.Template(
-        real_url = real_url, real_path = real_path,
-        files = files, has_parent = has_parent,
-        message = message, root_url = reqinfo.root_url
+        real_url = real_url, real_path = real_path, reqinfo = reqinfo,
+        files = files, has_parent = has_parent, message = message
     )
     return [t.serialize(output = 'xhtml')]
 

@@ -39,7 +39,7 @@ def url_to_unicode(url):
     <table>
     <tr><th>Filename</th><th>Last modified</th><th>Size</th><th>Type</th><th>Select</th></tr>
     <tr py:if="has_parent">
-        <td><a href="${webdav.get_real_url(os.path.join(real_path, '..'), root_url)}">..</a></td>
+        <td><a href="${reqinfo.get_url(os.path.join(real_path, '..'))}">..</a></td>
         <td>&nbsp;</td>
         <td class="size"></td>
         <td>Directory</td>
@@ -47,7 +47,7 @@ def url_to_unicode(url):
     </tr>
     <tr py:for="filename in files">
         <?python file_path = os.path.join(real_path, filename) ?>
-        <td><a href="${webdav.get_real_url(file_path, root_url)}">${filename}</a></td>
+        <td><a href="${reqinfo.get_url(file_path)}">${filename}</a></td>
         <td>${davutils.get_usertime(os.path.getmtime(file_path))}</td>
         <td class="size" py:if="not os.path.isdir(file_path)">
             ${davutils.pretty_unit(os.path.getsize(file_path), 1024, 0, '%0.2f') + 'B'}

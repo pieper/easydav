@@ -25,7 +25,8 @@ root_url = None
 # Deny all access to these files.
 restrict_access = [
     '.ht*',
-    '.svn'
+    '.svn',
+    '.easydav_locks'
 ]
     
 # Deny write access to these files.
