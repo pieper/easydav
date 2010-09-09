@@ -33,6 +33,7 @@ import zipfile
 import davutils
 from davutils import DAVError
 from requestinfo import RequestInfo
+from wsgi_input_wrapper import WSGIInputWrapper
 import webdavconfig as config
 
 def initialize_logging():
@@ -235,7 +236,7 @@ def handle_put(reqinfo, start_response):
         os.unlink(real_path)
 
     outfile = open(real_path, 'wb')
-    block_generator = davutils.read_blocks(reqinfo.wsgi_input, reqinfo.length)
+    block_generator = davutils.read_blocks(reqinfo.wsgi_input)
     davutils.write_blocks(outfile, block_generator)
     
     if new_file:
@@ -507,17 +508,16 @@ def main(environ, start_response):
             start_response('400 Bad Request: Expect not supported', [])
             return ""
         
+        environ['wsgi.input'] = WSGIInputWrapper(environ)
+        
         try:
             reqinfo = RequestInfo(environ)
             if request_handlers.has_key(request_method):
                 return request_handlers[request_method](reqinfo, start_response)
             else:
-                # Apache gives error "(104)Connection reset by peer:
-                # ap_content_length_filter: apr_bucket_read() failed" if the script
-                # does not read body.
-                reqinfo.wsgi_input.read(reqinfo.length)
                 raise DAVError('501 Not Implemented')
         except DAVError, e:
+            environ['wsgi.input'].read() # Discard request body
             if not e.body:
                 logging.warn(e.httpstatus)
                 start_response(e.httpstatus, [('Content-Type', 'text/plain')])
@@ -531,6 +531,9 @@ def main(environ, start_response):
         
         exc = traceback.format_exc()
         logging.error('Request handler crashed', exc_info = 1)
+        
+        if isinstance(environ['wsgi.input'], WSGIInputWrapper):
+            environ['wsgi.input'].read()
         
         try:
             start_response('500 Internal Server Error',

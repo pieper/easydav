@@ -141,20 +141,19 @@ table.
 
 Known bugs
 ----------
-
 When using CGI or FCGI interface, litmus warns that:
 WARNING: DELETE removed collection resource with Request-URI including fragment;
 This is because Apache strips the last part of urls like
 http://domain.com/dir/#fragment. I don't know a workaround, and I'm not sure
 what harm this causes. Possibly something with strange filenames.
 
+When using the built-in wsgiref.simple_server, the chunked encoding used by
+Mac OS X client is not supported. It is supported under CGI and FCGI.
+
 File timestamps are not preserved while uploading. May depend on client.
 
 Missing features
 ----------------
-The server implements WebDAV to level 1. The locking mechanisms in level 2 are
-not supported. This probably harms interoperation with Microsoft Office.
-
 The server supports only predefined properties. Custom properties cannot be set
 and therefore the litmus testset 'props' fails.
 

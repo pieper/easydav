@@ -25,12 +25,18 @@ class RequestInfo(object):
             self.log_environ()
         
         self.wsgi_input = environ['wsgi.input']
+        if self.wsgi_input:
+            self.length = environ['wsgi.input'].length
+        else:
+            self.length = 0
         self._lockmanager = None
         self.root_url = self.get_root_url()
-        self.length = self.get_length()
         self.check_if_header()
     
     def get_lockmanager(self):
+        '''Lazy construction for LockManager to avoid unnecessarily opening
+        the database.
+        '''
         if self._lockmanager is None and config.lock_db:
             self._lockmanager = LockManager()
         return self._lockmanager
@@ -74,21 +80,6 @@ class RequestInfo(object):
             url += '/'
         
         return url
-    
-    def get_length(self):
-        '''Get length of request body or -1 if the client uses chunked encoding.
-        -1 means to read until EOF, which works well under FCGI and CGI, but
-        not under wsgiref.simple_server.
-        '''
-        if self.environ.get('TRANSFER_ENCODING'):
-            return -1
-        elif self.environ.get('CONTENT_LENGTH'):
-            try:
-                return int(self.environ['CONTENT_LENGTH'])
-            except ValueError:
-                raise DAVError('400 Bad Request: Invalid Content-Length header')
-        else:
-            return 0
     
     def check_if_header(self):
         '''Check the If: header to determine whether the request should be
@@ -204,9 +195,6 @@ class RequestInfo(object):
         415 (Unsupported Media Type).
         '''
         if self.length:
-            # Read the body because sometimes Apache gives errors if the body
-            # is left unread.
-            self.wsgi_input.read(self.length)
             raise DAVError('415 Unsupported Media Type')
     
     def get_real_path(self, rel_path, mode):
