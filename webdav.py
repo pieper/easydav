@@ -393,6 +393,13 @@ def handle_dirindex(reqinfo, start_response, message = None):
     # No parent directory link in repository root
     has_parent = (reqinfo.root_url.rstrip('/') != real_url.rstrip('/'))
     
+    # Check whether to allow file upload.
+    try:
+        reqinfo.assert_write(real_path)
+        can_write = True
+    except DAVError:
+        can_write = False
+    
     files = os.listdir(real_path)
     for filename in files:
         try:
@@ -406,7 +413,8 @@ def handle_dirindex(reqinfo, start_response, message = None):
     start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8')])
     t = dirindex.Template(
         real_url = real_url, real_path = real_path, reqinfo = reqinfo,
-        files = files, has_parent = has_parent, message = message
+        files = files, has_parent = has_parent, message = message,
+        can_write = can_write
     )
     return [t.serialize(output = 'xhtml')]
 

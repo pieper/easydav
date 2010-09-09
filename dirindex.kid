@@ -23,6 +23,7 @@ def url_to_unicode(url):
     <h1>Index for ${url_to_unicode(real_url)}</h1>
     <p>Mount this directory using WebDAV with url <a href="${real_url}">${real_url}</a>.</p>
 
+    <element py:strip="" py:if="can_write">
     <h2>Upload a file</h2>
     <p>
     <form action="#" method="post" enctype="multipart/form-data">
@@ -31,6 +32,7 @@ def url_to_unicode(url):
             onclick="document.forms[0].submit();this.disabled=true" />
     </form>
     </p>
+    </element>
 
     <p class="message" py:if="message" py:content="message" />
 
