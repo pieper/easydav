@@ -5,15 +5,15 @@
 
 Copyright 2010 Petteri Aimonen <jpa@wd.mail.kapsi.fi>
 
-Redistribution and use in source and binary forms, with or without modification, are
-permitted provided that the following conditions are met:
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
 
-   1. Redistributions of source code must retain the above copyright notice, this list of
-      conditions and the following disclaimer.
+   1. Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
 
-   2. Redistributions in binary form must reproduce the above copyright notice, this list
-      of conditions and the following disclaimer in the documentation and/or other materials
-      provided with the distribution.
+   2. Redistributions in binary form must reproduce the above copyright notice,
+      this list of conditions and the following disclaimer in the documentation
+      and/or other materials provided with the distribution.
 '''
 
 __program_name__ = 'EasyDAV'
@@ -37,6 +37,9 @@ from wsgi_input_wrapper import WSGIInputWrapper
 import webdavconfig as config
 
 def initialize_logging():
+    '''Initialize python logging module based on configuration file.
+    Mark completion by setting logging.log_init_done to True.
+    '''
     formatter = logging.Formatter(
     '%(asctime)s %(process)d %(levelname)s %(message)s')
     
@@ -67,7 +70,10 @@ activelock = kid.load_template('activelock.kid')
 def handle_options(reqinfo, start_response):
     '''Handle an OPTIONS request.'''
     reqinfo.assert_nobody()
-    start_response('200 OK', [('DAV', '1,2')])
+    if reqinfo.lockmanager:
+        start_response('200 OK', [('DAV', '1,2')])
+    else:
+        start_response('200 OK', [('DAV', '1')])
     return ""
 
 def get_resourcetype(path):
@@ -132,16 +138,22 @@ def read_properties(real_path, requested):
     for prop in requested:
         if not property_handlers.has_key(prop):
             davutils.add_to_dict_list(propstats, '404 Not Found: Property', (prop, ''))
-        else:
-            try:
-                value = property_handlers[prop][0](real_path)
-                davutils.add_to_dict_list(propstats, '200 OK', (prop, value))
-            except Exception, e:
-                davutils.add_to_dict_list(propstats, '500 ' + str(e), (prop, ''))
+            continue
+        
+        try:
+            value = property_handlers[prop][0](real_path)
+            davutils.add_to_dict_list(propstats, '200 OK', (prop, value))
+        except Exception, e:
+            logging.error('Property handler ' + repr(prop) + ' failed',
+                exc_info = True)
+            davutils.add_to_dict_list(propstats, '500 ' + str(e), (prop, ''))
     
     return propstats
 
 def handle_propfind(reqinfo, start_response):
+    '''Handle propfind request by listing files and their associated
+    properties.
+    '''
     depth = reqinfo.get_depth('infinity')
     request_props = reqinfo.parse_propfind_body(property_handlers.keys())
     real_path = reqinfo.get_request_path('r')
@@ -164,8 +176,8 @@ def handle_propfind(reqinfo, start_response):
     return [t.serialize(output = 'xml')]
      
 def proppatch_verify_instruction(real_path, instruction):
-    '''Verify that the property can be set on the file,
-    or throw a DAVError.
+    '''Verify that the property can be set on the file, or throw a DAVError.
+    Used to verify instructions before they are executed.
     '''
     command, propname, propelement = instruction
     
@@ -185,6 +197,7 @@ def proppatch_verify_instruction(real_path, instruction):
         raise DAVError('403 Forbidden: Properties cannot be removed')
 
 def handle_proppatch(reqinfo, start_response):
+    '''Modify properties on a single file.'''
     instructions = reqinfo.parse_proppatch()
     real_path = reqinfo.get_request_path('w')
     real_url = reqinfo.get_url(real_path)
@@ -215,6 +228,7 @@ def handle_proppatch(reqinfo, start_response):
     return [t.serialize(output = 'xml')]
 
 def handle_put(reqinfo, start_response):
+    '''Write to a single file, possibly replacing an existing one.'''
     real_path = reqinfo.get_request_path('w')
     
     if os.path.isdir(real_path):
@@ -247,6 +261,7 @@ def handle_put(reqinfo, start_response):
     return ""
 
 def handle_get(reqinfo, start_response):
+    '''Download a single file or show directory index.'''
     reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('r')
     
@@ -270,6 +285,7 @@ def handle_get(reqinfo, start_response):
     return davutils.read_blocks(infile)
 
 def handle_mkcol(reqinfo, start_response):
+    '''Create a new directory.'''
     reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('w')
     
@@ -291,6 +307,7 @@ def purge_locks(lockmanager, real_path):
         lockmanager.release_lock(lock.path, lock.urn)
 
 def handle_delete(reqinfo, start_response):
+    '''Delete a file or a directory.'''
     reqinfo.assert_nobody()
     real_path = reqinfo.get_request_path('wd')
     
@@ -311,6 +328,7 @@ def handle_delete(reqinfo, start_response):
     return ""
 
 def handle_copy_move(reqinfo, start_response):
+    '''Copy or move a file or a directory.'''
     reqinfo.assert_nobody()
     depth = reqinfo.get_depth()
     real_source = reqinfo.get_request_path('r')
@@ -346,11 +364,15 @@ def handle_copy_move(reqinfo, start_response):
     return ""    
 
 def handle_lock(reqinfo, start_response):
+    '''Create a lock or refresh an existing one.'''
     timeout = reqinfo.get_timeout()
     depth = reqinfo.get_depth()
     real_path = reqinfo.get_request_path('wl')
     rel_path = davutils.get_relpath(real_path, config.root_dir)
     
+    if not reqinfo.lockmanager:
+        raise DAVError('501 Not Implemented: Lock support disabled')
+
     if not reqinfo.length:
         # Handle lock refresh
         lock = reqinfo.lockmanager.refresh_lock(rel_path,
@@ -375,10 +397,14 @@ def handle_lock(reqinfo, start_response):
     return [t.serialize(output = 'xml')]
 
 def handle_unlock(reqinfo, start_response):
+    '''Remove an existing lock.'''
     real_path = reqinfo.get_request_path('r')
     rel_path = davutils.get_relpath(real_path, config.root_dir)
-    urn = reqinfo.environ.get('HTTP_LOCK_TOKEN').strip(' <>')
-    
+    urn = reqinfo.environ.get('HTTP_LOCK_TOKEN', '').strip(' <>')
+
+    if not reqinfo.lockmanager:
+        raise DAVError('501 Not implemented: Lock support disabled')    
+
     reqinfo.lockmanager.release_lock(rel_path, urn)
     start_response('204 No Content', [])
     return ""
@@ -462,6 +488,8 @@ def handle_post(reqinfo, start_response):
         zipobj = zipfile.ZipFile(datafile, 'w', zipfile.ZIP_DEFLATED, True)
         
         def check_read(path):
+            '''Callback function for zipping to verify that each file in
+            the zip has access rights.'''
             try:
                 reqinfo.assert_read(path)
                 return True
@@ -503,6 +531,9 @@ request_handlers = {
 }
 
 def main(environ, start_response):
+    '''Main WSGI program to handle requests. Calls handlers from
+    request_handlers.
+    '''
     try:
         logging.info(environ.get('REMOTE_ADDR')
             + ' ' + environ.get('REQUEST_METHOD')

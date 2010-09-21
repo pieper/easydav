@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
 
+'''Miscellaneous DAV-related utility functions and their associated unit
+tests.
+'''
+
 import mimetypes
 import time
 import os.path

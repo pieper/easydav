@@ -10,7 +10,6 @@ import sqlite3
 from uuid import uuid4
 import datetime
 from davutils import DAVError
-import xml.etree.ElementTree as ET
 
 class Lock:
     '''Convenience wrapper for database rows returned from LockManager.'''
@@ -29,10 +28,14 @@ class Lock:
         return '<Lock ' + self.urn + ' on ' + repr(self.path) + '>'
 
     def seconds_until_timeout(self):
+        '''Return the number of seconds from current time to the moment when
+        the lock expires.
+        '''
         delta = self.valid_until - datetime.datetime.utcnow()
         return delta.seconds + delta.days * 86400
 
 class LockManager:
+    '''Implementation of WebDAV lock semantics.'''
     def __init__(self):
         # Lock_db can be absolute path or relative to root dir.
         dbpath = os.path.join(config.root_dir, config.lock_db)

@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+'''Request parser class for EasyDAV.'''
+
 import logging
 import os.path
 import unicodedata
@@ -44,6 +46,7 @@ class RequestInfo(object):
     lockmanager = property(get_lockmanager)
     
     def log_environ(self):
+        '''Log relevant WSGI environment variables for debugging purposes.'''
         headers = ['HTTP_HOST', 'REQUEST_URI', 'PATH_INFO',
                    'HTTP_DESTINATION', 'HTTP_DEPTH', 'CONTENT_LENGTH',
                    'TRANSFER_ENCODING', 'HTTP_IF', 'HTTP_IF_MATCH',

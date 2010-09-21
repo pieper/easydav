@@ -73,6 +73,19 @@ The configuration file, *webdavconfig.py*, has the following settings:
   List of files that cannot be written. These will show up in directory listing.
   They cannot be directly copied or removed, but can be when the action is
   performed on a whole directory.
+- *unicode_normalize:*
+  Normalization of unicode characters used in file names. Ensures that all clients
+  threat semantically equivalent filenames as logically equivalent.
+- *lock_db:*
+  SQLite database file to store acquired locks. Set to None to disable locking.
+- *lock_max_time:*
+  Maximum expire time of locks, in seconds.
+- *lock_wait:*
+  Time to wait for access to lock database, in seconds.
+- *log_file:*
+  Log file name relative to webdav.py location.
+- *log_level:*
+  Numerical value, 0 for maximum amount of debug messages.
 
 Security
 --------
