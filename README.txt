@@ -154,12 +154,6 @@ table.
 
 Known bugs
 ----------
-When using CGI or FCGI interface, litmus warns that:
-WARNING: DELETE removed collection resource with Request-URI including fragment;
-This is because Apache strips the last part of urls like
-http://domain.com/dir/#fragment. I don't know a workaround, and I'm not sure
-what harm this causes. Possibly something with strange filenames.
-
 When using the built-in wsgiref.simple_server, the chunked encoding used by
 Mac OS X client is not supported. It is supported under CGI and FCGI.
 
@@ -171,6 +165,5 @@ The server supports only predefined properties. Custom properties cannot be set
 and therefore the litmus testset 'props' fails.
 
 The server does not support per-user access restrictions. These could be
-implemented by installing multiple instances of the program and using the
-per-file access restrictions to deny writing in one installation.
+implemented by hacking the code in requestinfo.py.
 
