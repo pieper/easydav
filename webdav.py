@@ -17,7 +17,7 @@ are permitted provided that the following conditions are met:
 '''
 
 __program_name__ = 'EasyDAV'
-__version__ = "0.2-dev"
+__version__ = "0.3-dev"
 
 import cgi
 import kid
