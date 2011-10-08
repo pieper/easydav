@@ -45,6 +45,11 @@ restrict_write = [
     '*.pl.*',
 ]
 
+# Enable or disable the HTML interface, intended for web browsers.
+# This does not affect webdav clients.
+# Allowed values: '' (no html interface), 'r' (read only) or 'rw' (read write)
+html_interface = 'rw'
+
 # File name normalization
 # Unicode can express same letters in multiple forms, such as composed and
 # decomposed forms. Therefore it is possible to have two filenames that

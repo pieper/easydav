@@ -61,7 +61,7 @@ def url_to_unicode(url):
     </tr>
     </table>
     <p>
-        <input type="submit" name="btn_remove" value="Remove selected"
+        <input type="submit" name="btn_remove" value="Remove selected" py:if="can_write"
             onclick="return confirm('Really remove files?')"/>
         <input type="submit" name="btn_download" value="Download selected" />
     </p>

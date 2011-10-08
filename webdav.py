@@ -413,6 +413,13 @@ def handle_dirindex(reqinfo, start_response, message = None):
     '''Handle a GET request for a directory.
     Result is unimportant for DAV clients and only ment for WWW browsers.
     '''
+    
+    if 'r' not in config.html_interface:
+        start_response('200 OK', [('Content-Type', 'text/html; charset=utf-8')])
+        return ['<html><body><p>Mount this directory using WebDAV.</p>' +
+                '<p>HTML interface is currently disabled.</p>' +
+                '<p>' + __program_name__ + ' ' + __version__ + '</p>']
+    
     real_path = reqinfo.get_request_path('r')
     real_url = reqinfo.get_url(real_path)
     
@@ -422,7 +429,7 @@ def handle_dirindex(reqinfo, start_response, message = None):
     # Check whether to allow file upload.
     try:
         reqinfo.assert_write(real_path)
-        can_write = True
+        can_write = 'w' in config.html_interface
     except DAVError:
         can_write = False
     
@@ -448,6 +455,9 @@ def handle_post(reqinfo, start_response):
     '''Handle a POST request.
     Used for file uploads and deletes in the HTML GUI.
     '''
+    if 'w' not in config.html_interface:
+        raise DAVError('403 HTML interface is configured as read-only')
+    
     fields = cgi.FieldStorage(fp = reqinfo.wsgi_input, environ = reqinfo.environ)
     real_path = reqinfo.get_request_path('r')
     message = ""
