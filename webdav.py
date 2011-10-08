@@ -87,6 +87,22 @@ def get_resourcetype(path):
     else:
         return ''
 
+def get_supportedlock(path):
+    '''Return the contents for <DAV:supportedlock> property.'''
+    if os.path.isdir(path):
+        return kid.parser.XML('''
+            <D:lockentry xmlns:D="DAV">
+                <D:lockscope><D:exclusive /></D:lockscope>
+                <D:locktype><D:write /></D:locktype>
+            </D:lockentry>
+            <D:lockentry xmlns:D="DAV">
+                <D:lockscope><D:shared /></D:lockscope>
+                <D:locktype><D:write /></D:locktype>
+            </D:lockentry>
+        ''')
+    else:
+        return ''
+
 # All supported properties.
 # Key is the element name inside DAV:prop element.
 # Value is tuple of functions: (get, set)
@@ -121,7 +137,7 @@ property_handlers = {
 }
 
 if config.lock_db is not None:
-    property_handlers['{DAV:}supportedlock'] = (lambda path: '', None)
+    property_handlers['{DAV:}supportedlock'] = (get_supportedlock, None)
 
 def read_properties(real_path, requested):
     '''Return a propstats dictionary for the file specified by real_path.
