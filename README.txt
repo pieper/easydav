@@ -113,12 +113,12 @@ Each release is tested automatically in the following configurations:
 3) Under Apache userdir with CGI interface.
 
 Currently automatic testing includes the litmus WebDAV test suite, which aims
-to verify standard compatibility. The features required by test sets "props"
-and "locks" are currently not supported.
+to verify standard compatibility. The features required by test set "props"
+are currently not supported.
 http://www.webdav.org/neon/litmus/
 
 Automatic regression tests for the security features are planned but not yet
-implemented.
+implemented. Unit tests for the part are implemented.
 
 Configurations 2) or 3) above are preferred for client compatibility testing.
 The test method is as follows:
