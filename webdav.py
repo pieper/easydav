@@ -120,6 +120,9 @@ property_handlers = {
     )
 }
 
+if config.lock_db is not None:
+    property_handlers['{DAV:}supportedlock'] = (lambda path: '', None)
+
 def read_properties(real_path, requested):
     '''Return a propstats dictionary for the file specified by real_path.
     The argument 'requested' is either a list of property names,

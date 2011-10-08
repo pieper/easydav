@@ -69,6 +69,7 @@ class RequestInfo(object):
             url += '://' + self.environ['HTTP_HOST']
             if self.environ.has_key('REQUEST_URI'):
                 full_path = urllib.unquote(self.environ['REQUEST_URI'])
+                full_path = full_path.split('?', 1)[0] 
                 assert full_path.startswith('/')
                 rel_path = self.environ.get('PATH_INFO', '')
                 assert full_path.endswith(rel_path)
