@@ -165,6 +165,7 @@ def handle_propfind(reqinfo, start_response):
         except DAVError, e:
             if e.httpstatus.startswith('403'):
                 continue # Skip forbidden paths from listing
+            raise
         
         real_url = reqinfo.get_url(path)
         propstats = read_properties(path, request_props)
