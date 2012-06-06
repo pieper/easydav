@@ -3,7 +3,7 @@
 
 '''A simple to deploy WSGI webdav implementation.
 
-Copyright 2010 Petteri Aimonen <jpa@wd.mail.kapsi.fi>
+Copyright 2010-2012 Petteri Aimonen <jpa@wd.mail.kapsi.fi>
 
 Redistribution and use in source and binary forms, with or without modification,
 are permitted provided that the following conditions are met:
@@ -17,7 +17,7 @@ are permitted provided that the following conditions are met:
 '''
 
 __program_name__ = 'EasyDAV'
-__version__ = "0.3-dev"
+__version__ = "0.3"
 
 import cgi
 import kid
