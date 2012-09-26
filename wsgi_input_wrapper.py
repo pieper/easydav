@@ -56,3 +56,8 @@ class WSGIInputWrapper:
 
         self.bytes_read += len(result)
         return result
+
+    def readline(self, size = -1):
+        result = self.wsgi_input.readline(size)
+        self.bytes_read += len(result)
+        return result
