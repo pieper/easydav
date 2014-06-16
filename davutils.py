@@ -216,7 +216,7 @@ def add_to_zip_recursively(zipobj, real_path, root_dir, check_read):
         root_dir += '/'
     
     for path in search_directory(real_path):
-        if not os.path.isdir(path) or not check_read(path):
+        if not os.path.isdir(path) and not check_read(path):
             continue
         
         assert path[:len(root_dir)] == root_dir
